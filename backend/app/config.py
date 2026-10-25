@@ -30,6 +30,7 @@ class Settings(BaseModel):
     PORT: int = int(os.getenv("PORT", "8000"))
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
     DATABASE_NAME: str = os.getenv("DATABASE_NAME", "imlab_storage")
+    SEED_DEMO_DATA: bool = os.getenv("SEED_DEMO_DATA", "false").lower() in ("true", "1", "yes")
     
     # Uploads directory
     _raw_upload_dir: str = os.getenv("UPLOAD_DIR", "static/uploads")

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, QrCode, X, User as UserIcon, PlusCircle, List, LogIn, LogOut, Home } from 'lucide-react';
+import { Menu, QrCode, X, User as UserIcon, PlusCircle, List, LogIn, LogOut, Home, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api/client';
 import { QRScannerModal } from './QRScannerModal';
 
 export const Header: React.FC = () => {
@@ -15,6 +16,20 @@ export const Header: React.FC = () => {
     logout();
     setIsMenuOpen(false);
     navigate('/');
+  };
+
+  const handleClearDemoData = async () => {
+    if (!window.confirm('初期サンプル備品（6点）とダミーユーザー、利用履歴を一括削除しますか？\n（※棚の区画A-1〜C-3はそのまま保持されます）')) {
+      return;
+    }
+    try {
+      const res = await api.clearDemoData();
+      alert(`ダミーデータを削除しました（備品: ${res.deleted.deleted_items}件, ユーザー: ${res.deleted.deleted_users}件）`);
+      setIsMenuOpen(false);
+      window.location.href = '/';
+    } catch (err: any) {
+      alert(err.message || 'ダミーデータの削除に失敗しました');
+    }
   };
 
   return (
@@ -165,9 +180,9 @@ export const Header: React.FC = () => {
               </Link>
             </nav>
 
-            {/* Logout button if logged in */}
-            {currentUser && (
-              <div className="p-3 border-t border-slate-100">
+            {/* Bottom Actions */}
+            <div className="p-3 border-t border-slate-100 space-y-1">
+              {currentUser && (
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition"
@@ -175,8 +190,16 @@ export const Header: React.FC = () => {
                   <LogOut className="w-4 h-4" />
                   <span>ログアウト</span>
                 </button>
-              </div>
-            )}
+              )}
+              <button
+                onClick={handleClearDemoData}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                title="サンプルの備品・ユーザーデータを一括消去"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>初期ダミーデータを消去</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

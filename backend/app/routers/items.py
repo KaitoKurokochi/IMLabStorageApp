@@ -187,3 +187,22 @@ async def return_item(item_id: str, req: Optional[ItemBorrowRequest] = None):
     updated = await db.return_item(item_id, user_id=user_id, user_name=user_name)
     return updated
 
+@router.delete("/{item_id}")
+async def delete_item(item_id: str):
+    """備品を削除"""
+    item = await db.get_item(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    deleted = await db.delete_item(item_id)
+    if not deleted:
+        raise HTTPException(status_code=500, detail="備品の削除に失敗しました。")
+    return {"status": "ok", "deleted_id": item_id}
+
+@router.post("/admin/clear-demo-data")
+async def clear_demo_data():
+    """初期ダミーデータ (備品・ユーザー・ログ) を一括削除"""
+    res = await db.clear_demo_data()
+    return {"status": "ok", "deleted": res}
+
+

@@ -193,12 +193,22 @@ class DatabaseManager:
             except Exception as e:
                 print(f"Error loading {DATA_FILE}: {e}")
         
-        self._memory_data = {
-            "shelves": DEFAULT_SHELVES,
-            "users": DEFAULT_USERS,
-            "items": DEFAULT_ITEMS,
-            "usage_logs": DEFAULT_LOGS,
-        }
+        if settings.SEED_DEMO_DATA:
+            self._memory_data = {
+                "shelves": DEFAULT_SHELVES,
+                "users": DEFAULT_USERS,
+                "items": DEFAULT_ITEMS,
+                "usage_logs": DEFAULT_LOGS,
+                "images": {},
+            }
+        else:
+            self._memory_data = {
+                "shelves": DEFAULT_SHELVES,
+                "users": [],
+                "items": [],
+                "usage_logs": [],
+                "images": {},
+            }
         self._save_file_data()
 
     def _save_file_data(self):
@@ -213,11 +223,13 @@ class DatabaseManager:
             return
         shelves_count = await self.db.shelves.count_documents({})
         if shelves_count == 0:
-            print("🌱 Seeding MongoDB initial data...")
+            print("🌱 Seeding MongoDB shelves (A-1 to C-3)...")
             await self.db.shelves.insert_many([dict(s, _id=s["id"]) for s in DEFAULT_SHELVES])
-            await self.db.users.insert_many([dict(u, _id=u["id"]) for u in DEFAULT_USERS])
-            await self.db.items.insert_many([dict(i, _id=i["id"]) for i in DEFAULT_ITEMS])
-            await self.db.usage_logs.insert_many([dict(l, _id=l["id"]) for l in DEFAULT_LOGS])
+            if settings.SEED_DEMO_DATA:
+                print("🌱 Seeding demo users, items, and logs...")
+                await self.db.users.insert_many([dict(u, _id=u["id"]) for u in DEFAULT_USERS])
+                await self.db.items.insert_many([dict(i, _id=i["id"]) for i in DEFAULT_ITEMS])
+                await self.db.usage_logs.insert_many([dict(l, _id=l["id"]) for l in DEFAULT_LOGS])
 
     # ---------------- Shelves ----------------
     async def get_shelves(self) -> List[Dict[str, Any]]:
@@ -386,6 +398,58 @@ class DatabaseManager:
                 self._memory_data.setdefault("items", []).append(item)
                 self._save_file_data()
             return item
+
+    async def delete_item(self, item_id: str) -> bool:
+        async with self._lock:
+            if self.is_mongo:
+                res = await self.db.items.delete_one({"$or": [{"_id": item_id}, {"id": item_id}]})
+                return res.deleted_count > 0
+            else:
+                items = self._memory_data.get("items", [])
+                initial_len = len(items)
+                self._memory_data["items"] = [i for i in items if i["id"] != item_id]
+                deleted = len(self._memory_data["items"]) < initial_len
+                if deleted:
+                    self._save_file_data()
+                return deleted
+
+    async def clear_demo_data(self) -> Dict[str, int]:
+        """ダミー備品 (item-1〜6) とダミーユーザー (user-1〜3)、および関連ログを一括削除"""
+        demo_item_ids = [d["id"] for d in DEFAULT_ITEMS]
+        demo_user_ids = [d["id"] for d in DEFAULT_USERS]
+        async with self._lock:
+            if self.is_mongo:
+                items_res = await self.db.items.delete_many({"$or": [{"_id": {"$in": demo_item_ids}}, {"id": {"$in": demo_item_ids}}]})
+                users_res = await self.db.users.delete_many({"$or": [{"_id": {"$in": demo_user_ids}}, {"id": {"$in": demo_user_ids}}]})
+                logs_res = await self.db.usage_logs.delete_many({"$or": [{"user_id": {"$in": demo_user_ids}}, {"item_id": {"$in": demo_item_ids}}]})
+                return {
+                    "deleted_items": items_res.deleted_count,
+                    "deleted_users": users_res.deleted_count,
+                    "deleted_logs": logs_res.deleted_count
+                }
+            else:
+                items_before = len(self._memory_data.get("items", []))
+                users_before = len(self._memory_data.get("users", []))
+                logs_before = len(self._memory_data.get("usage_logs", []))
+
+                self._memory_data["items"] = [
+                    i for i in self._memory_data.get("items", [])
+                    if i["id"] not in demo_item_ids
+                ]
+                self._memory_data["users"] = [
+                    u for u in self._memory_data.get("users", [])
+                    if u["id"] not in demo_user_ids
+                ]
+                self._memory_data["usage_logs"] = [
+                    l for l in self._memory_data.get("usage_logs", [])
+                    if l.get("user_id") not in demo_user_ids and l.get("item_id") not in demo_item_ids
+                ]
+                self._save_file_data()
+                return {
+                    "deleted_items": items_before - len(self._memory_data["items"]),
+                    "deleted_users": users_before - len(self._memory_data["users"]),
+                    "deleted_logs": logs_before - len(self._memory_data["usage_logs"])
+                }
 
     async def borrow_item(self, item_id: str, user_id: str, user_name: str) -> Optional[Dict[str, Any]]:
         async with self._lock:

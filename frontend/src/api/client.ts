@@ -151,6 +151,27 @@ export const api = {
     return res.json();
   },
 
+  async deleteItem(itemId: string): Promise<void> {
+    const res = await fetch(`${API_PREFIX}/items/${itemId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || '備品の削除に失敗しました');
+    }
+  },
+
+  async clearDemoData(): Promise<{ status: string; deleted: Record<string, number> }> {
+    const res = await fetch(`${API_PREFIX}/items/admin/clear-demo-data`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'ダミーデータの削除に失敗しました');
+    }
+    return res.json();
+  },
+
   // Users
   async getUsers(): Promise<User[]> {
     const res = await fetch(`${API_PREFIX}/users`);

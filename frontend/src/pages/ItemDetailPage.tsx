@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Play,
   RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Layout } from '../components/Layout';
@@ -104,6 +105,22 @@ export const ItemDetailPage: React.FC = () => {
     }
   };
 
+  const handleDelete = async () => {
+    if (!item) return;
+    if (!window.confirm(`備品「${item.name}」を削除してもよろしいですか？`)) {
+      return;
+    }
+
+    try {
+      setProcessing(true);
+      await api.deleteItem(item.id);
+      navigate('/items');
+    } catch (err: any) {
+      setActionError(err.message || '備品の削除に失敗しました。');
+      setProcessing(false);
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -146,14 +163,26 @@ export const ItemDetailPage: React.FC = () => {
             <span>戻る</span>
           </button>
 
-          <button
-            onClick={() => setShowQR(!showQR)}
-            className="p-2 border border-slate-200 hover:bg-slate-100 rounded-xl text-slate-700 text-xs font-medium flex items-center gap-1.5 transition"
-            title="備品QRコードを表示"
-          >
-            <QrCode className="w-4 h-4 text-indigo-600" />
-            <span className="hidden sm:inline">備品QRコード</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowQR(!showQR)}
+              className="p-2 border border-slate-200 hover:bg-slate-100 rounded-xl text-slate-700 text-xs font-medium flex items-center gap-1.5 transition"
+              title="備品QRコードを表示"
+            >
+              <QrCode className="w-4 h-4 text-indigo-600" />
+              <span className="hidden sm:inline">備品QRコード</span>
+            </button>
+
+            <button
+              onClick={handleDelete}
+              disabled={processing}
+              className="p-2 border border-slate-200 hover:border-rose-300 hover:bg-rose-50 rounded-xl text-slate-500 hover:text-rose-600 text-xs font-medium flex items-center gap-1.5 transition"
+              title="備品を削除"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">削除</span>
+            </button>
+          </div>
         </div>
 
         {/* QR Code Card if toggled */}
