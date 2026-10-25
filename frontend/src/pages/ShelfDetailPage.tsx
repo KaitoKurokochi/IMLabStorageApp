@@ -139,7 +139,7 @@ export const ShelfDetailPage: React.FC = () => {
             </h2>
 
             <button
-              onClick={() => navigate('/items/new')}
+              onClick={() => navigate(`/items/new?shelf_id=${shelf.id}`)}
               className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1"
             >
               <PlusCircle className="w-3.5 h-3.5" />

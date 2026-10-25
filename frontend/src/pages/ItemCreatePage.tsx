@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UploadCloud, Image as ImageIcon, Loader2, ArrowLeft, Check } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { api, Shelf } from '../api/client';
@@ -17,9 +17,12 @@ const CATEGORIES = [
 
 export const ItemCreatePage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryShelfId = searchParams.get('shelf_id') || searchParams.get('shelf') || 'A-1';
+
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [name, setName] = useState('');
-  const [shelfId, setShelfId] = useState('A-1');
+  const [shelfId, setShelfId] = useState(queryShelfId);
   const [category, setCategory] = useState('VR');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -27,6 +30,13 @@ export const ItemCreatePage: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const paramShelf = searchParams.get('shelf_id') || searchParams.get('shelf');
+    if (paramShelf) {
+      setShelfId(paramShelf);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     api.getShelves().then(setShelves).catch(console.error);
