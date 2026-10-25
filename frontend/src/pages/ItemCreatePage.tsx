@@ -137,12 +137,33 @@ export const ItemCreatePage: React.FC = () => {
                     <option value="A-1">棚 A-1</option>
                     <option value="A-2">棚 A-2</option>
                     <option value="A-3">棚 A-3</option>
+                    <option value="A-4">棚 A-4</option>
+                    <option value="A-5">棚 A-5</option>
+                    <option value="A-6-1">棚 A-6-1</option>
+                    <option value="A-6-2">棚 A-6-2</option>
                     <option value="B-1">棚 B-1</option>
                     <option value="B-2">棚 B-2</option>
-                    <option value="B-3">棚 B-3</option>
+                    <option value="B-3-1">棚 B-3-1</option>
+                    <option value="B-3-2">棚 B-3-2</option>
+                    <option value="B-3-3">棚 B-3-3</option>
+                    <option value="B-3-4">棚 B-3-4</option>
+                    <option value="B-4-1">棚 B-4-1</option>
+                    <option value="B-4-2">棚 B-4-2</option>
+                    <option value="B-4-3">棚 B-4-3</option>
+                    <option value="B-4-4">棚 B-4-4</option>
+                    <option value="B-5">棚 B-5</option>
+                    <option value="B-6">棚 B-6</option>
                     <option value="C-1">棚 C-1</option>
                     <option value="C-2">棚 C-2</option>
                     <option value="C-3">棚 C-3</option>
+                    <option value="C-4">棚 C-4</option>
+                    <option value="C-5">棚 C-5</option>
+                    <option value="C-6-1">棚 C-6-1</option>
+                    <option value="C-6-2">棚 C-6-2</option>
+                    <option value="C-6-3">棚 C-6-3</option>
+                    <option value="C-6-4">棚 C-6-4</option>
+                    <option value="C-6-5">棚 C-6-5</option>
+                    <option value="C-6-6">棚 C-6-6</option>
                   </>
                 )}
               </select>

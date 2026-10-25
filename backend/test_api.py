@@ -8,7 +8,7 @@ async def test_backend():
     
     shelves = await db.get_shelves()
     print(f"Shelves count: {len(shelves)}")
-    assert len(shelves) == 9, "Expected 9 shelves (A-1 to C-3)"
+    assert len(shelves) == 30, "Expected 30 shelves"
 
     items = await db.get_items()
     print(f"Items count: {len(items)}")

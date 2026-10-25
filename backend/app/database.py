@@ -14,15 +14,36 @@ DATA_FILE = os.path.join(DATA_DIR, "db.json")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 DEFAULT_SHELVES = [
-    {"id": "A-1", "row": "A", "col": 1, "name": "棚 A-1", "description": "上段左側 (VR・HMD関連)"},
-    {"id": "A-2", "row": "A", "col": 2, "name": "棚 A-2", "description": "上段中央 (コントローラ・センサ)"},
-    {"id": "A-3", "row": "A", "col": 3, "name": "棚 A-3", "description": "上段右側 (光学機器・カメラ)"},
-    {"id": "B-1", "row": "B", "col": 1, "name": "棚 B-1", "description": "中段左側 (GPU・PCパーツ)"},
-    {"id": "B-2", "row": "B", "col": 2, "name": "棚 B-2", "description": "中段中央 (マイコン・基板)"},
-    {"id": "B-3", "row": "B", "col": 3, "name": "棚 B-3", "description": "中段右側 (ケーブル・変換アダプタ)"},
-    {"id": "C-1", "row": "C", "col": 1, "name": "棚 C-1", "description": "下段左側 (電動工具・工作用具)"},
-    {"id": "C-2", "row": "C", "col": 2, "name": "棚 C-2", "description": "下段中央 (3Dプリンタ備品・フィラメント)"},
-    {"id": "C-3", "row": "C", "col": 3, "name": "棚 C-3", "description": "下段右側 (計測器・オシロスコープ)"},
+    {"id": "A-1", "row": "A", "col": 1, "name": "棚 A-1", "description": "上段 1列目 (VR・HMD関連)"},
+    {"id": "A-2", "row": "A", "col": 2, "name": "棚 A-2", "description": "上段 2列目 (コントローラ・センサ)"},
+    {"id": "A-3", "row": "A", "col": 3, "name": "棚 A-3", "description": "上段 3列目 (光学機器・カメラ)"},
+    {"id": "A-4", "row": "A", "col": 4, "name": "棚 A-4", "description": "上段 4列目"},
+    {"id": "A-5", "row": "A", "col": 5, "name": "棚 A-5", "description": "上段 5列目"},
+    {"id": "A-6-1", "row": "A", "col": 6, "name": "棚 A-6-1", "description": "上段 6列目 下段左"},
+    {"id": "A-6-2", "row": "A", "col": 6, "name": "棚 A-6-2", "description": "上段 6列目 下段右"},
+    {"id": "B-1", "row": "B", "col": 1, "name": "棚 B-1", "description": "中段 1列目 (GPU・PCパーツ)"},
+    {"id": "B-2", "row": "B", "col": 2, "name": "棚 B-2", "description": "中段 2列目 (マイコン・基板)"},
+    {"id": "B-3-1", "row": "B", "col": 3, "name": "棚 B-3-1", "description": "中段 3列目 左上 (2x2)"},
+    {"id": "B-3-2", "row": "B", "col": 3, "name": "棚 B-3-2", "description": "中段 3列目 右上 (2x2)"},
+    {"id": "B-3-3", "row": "B", "col": 3, "name": "棚 B-3-3", "description": "中段 3列目 左下 (2x2)"},
+    {"id": "B-3-4", "row": "B", "col": 3, "name": "棚 B-3-4", "description": "中段 3列目 右下 (2x2)"},
+    {"id": "B-4-1", "row": "B", "col": 4, "name": "棚 B-4-1", "description": "中段 4列目 左上 (2x2)"},
+    {"id": "B-4-2", "row": "B", "col": 4, "name": "棚 B-4-2", "description": "中段 4列目 右上 (2x2)"},
+    {"id": "B-4-3", "row": "B", "col": 4, "name": "棚 B-4-3", "description": "中段 4列目 左下 (2x2)"},
+    {"id": "B-4-4", "row": "B", "col": 4, "name": "棚 B-4-4", "description": "中段 4列目 右下 (2x2)"},
+    {"id": "B-5", "row": "B", "col": 5, "name": "棚 B-5", "description": "中段 5列目"},
+    {"id": "B-6", "row": "B", "col": 6, "name": "棚 B-6", "description": "中段 6列目 (ケーブル・変換アダプタ)"},
+    {"id": "C-1", "row": "C", "col": 1, "name": "棚 C-1", "description": "下段 1列目 (電動工具・工作用具)"},
+    {"id": "C-2", "row": "C", "col": 2, "name": "棚 C-2", "description": "下段 2列目 (3Dプリンタ備品・フィラメント)"},
+    {"id": "C-3", "row": "C", "col": 3, "name": "棚 C-3", "description": "下段 3列目 (計測器・オシロスコープ)"},
+    {"id": "C-4", "row": "C", "col": 4, "name": "棚 C-4", "description": "下段 4列目"},
+    {"id": "C-5", "row": "C", "col": 5, "name": "棚 C-5", "description": "下段 5列目"},
+    {"id": "C-6-1", "row": "C", "col": 6, "name": "棚 C-6-1", "description": "下段 6列目 1段目左 (3x2)"},
+    {"id": "C-6-2", "row": "C", "col": 6, "name": "棚 C-6-2", "description": "下段 6列目 1段目右 (3x2)"},
+    {"id": "C-6-3", "row": "C", "col": 6, "name": "棚 C-6-3", "description": "下段 6列目 2段目左 (3x2)"},
+    {"id": "C-6-4", "row": "C", "col": 6, "name": "棚 C-6-4", "description": "下段 6列目 2段目右 (3x2)"},
+    {"id": "C-6-5", "row": "C", "col": 6, "name": "棚 C-6-5", "description": "下段 6列目 3段目左 (3x2)"},
+    {"id": "C-6-6", "row": "C", "col": 6, "name": "棚 C-6-6", "description": "下段 6列目 3段目右 (3x2)"},
 ]
 
 DEFAULT_USERS = [
@@ -216,7 +237,7 @@ class DatabaseManager:
             shelf["item_count"] = len(shelf_items)
             shelf["available_count"] = len([i for i in shelf_items if i.get("status") == "available"])
         
-        return sorted(shelves, key=lambda s: (s.get("row", ""), s.get("col", 0)))
+        return sorted(shelves, key=lambda s: (s.get("row", ""), s.get("col", 0), s.get("id", "")))
 
     async def get_shelf(self, shelf_id: str) -> Optional[Dict[str, Any]]:
         shelves = await self.get_shelves()
