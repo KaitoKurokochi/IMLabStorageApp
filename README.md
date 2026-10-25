@@ -48,21 +48,48 @@
 
 ---
 
-## 4. クイックスタート & デプロイ
+## 4. クイックスタート & クラウド無料デプロイ (0円運用)
 
-### 開発時のワンクリック起動 (推奨)
+### 案2: MongoDB Atlas + Render.com による完全無料デプロイ (推奨)
+研究室PC不要・完全無料で運用する推奨構成です。
+
+#### ステップ1: MongoDB Atlas (無料DB) の作成
+1. [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register) に無料登録。
+2. 無料クラスタ（**M0 Free**）を作成。
+3. Database Access でユーザー名とパスワードを作成（例: `imlab_user` / `パスワード`）。
+4. Network Access で `0.0.0.0/0` (Allow Access from Anywhere) を追加。
+5. 「Connect」→「Drivers」から接続文字列（URI）をコピー:
+   `mongodb+srv://imlab_user:<password>@cluster0.xxxxx.mongodb.net/imlab_storage?retryWrites=true&w=majority`
+
+#### ステップ2: Render.com にワンクリック無料デプロイ
+1. 本リポジトリをご自身のGitHubにプッシュ。
+2. [Render.com](https://render.com/) にGitHubアカウントで無料登録。
+3. 「New +」→「Web Service」を選択し、リポジトリを連携。
+4. 設定（Dockerfileが自動認識されます）:
+   - **Environment**: Docker
+   - **Instance Type**: **Free (0$/月)**
+5. 「Environment Variables」に以下を追加:
+   - `MONGODB_URL`: ステップ1でコピーしたURI
+   - `APP_ENV`: `production`
+   - `DATABASE_NAME`: `imlab_storage`
+6. 「Deploy」をクリック。ビルド完了後、発行された `https://xxx.onrender.com` で即座に利用できます！
+
+> **画像の保存について**:
+> アップロードされた備品画像は自動で圧縮・WebP最適化され、すべて **MongoDB Atlas内（imagesコレクション）にバイナリ保存** されます。クラウドコンテナがスリープ・再起動しても画像データが消える心配はありません。
+
+---
+
+### 開発環境での起動 (ローカル)
 ```bash
 ./start.sh
 ```
-バックエンド(FastAPI: `http://localhost:8000`)とフロントエンド(Vite: `http://localhost:5173`)が同時に立ち上がります。
 
-### Docker Compose による本番デプロイ
-MongoDB、FastAPIバックエンド、Nginx + フロントエンドSPAを1コマンドで一括起動できます。
+### Docker Compose による一括ローカル起動
 ```bash
 docker compose up -d --build
 ```
-- アプリケーション (フロントエンド): `http://localhost` (ポート80)
-- APIサーバー: `http://localhost:8000` (または Nginx経由 `http://localhost/api`)
+- アプリケーション: `http://localhost` (ポート 80)
+- APIサーバー: `http://localhost:8000`
 
 ### 手動での個別起動
 

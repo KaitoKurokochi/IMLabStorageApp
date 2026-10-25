@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import base64
 import asyncio
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -488,6 +489,45 @@ class DatabaseManager:
                 logs = [l for l in logs if l.get("user_id") == user_id]
             logs = sorted(logs, key=lambda l: l.get("timestamp", ""), reverse=True)
             return logs[:limit]
+
+    # ---------------- Images (MongoDB Binary Storage) ----------------
+    async def save_image(self, image_bytes: bytes, content_type: str = "image/webp", filename: str = "") -> str:
+        image_id = f"img-{uuid.uuid4().hex[:12]}"
+        now = datetime.now().isoformat()
+        if self.is_mongo:
+            await self.db.images.insert_one({
+                "_id": image_id,
+                "data": image_bytes,
+                "content_type": content_type,
+                "filename": filename,
+                "size": len(image_bytes),
+                "created_at": now
+            })
+        else:
+            async with self._lock:
+                self._memory_data.setdefault("images", {})[image_id] = {
+                    "data": base64.b64encode(image_bytes).decode("ascii"),
+                    "content_type": content_type,
+                    "filename": filename,
+                    "size": len(image_bytes),
+                    "created_at": now
+                }
+                self._save_file_data()
+        return image_id
+
+    async def get_image(self, image_id: str) -> Optional[tuple[bytes, str]]:
+        if self.is_mongo:
+            doc = await self.db.images.find_one({"_id": image_id})
+            if doc:
+                data = doc["data"]
+                return bytes(data), doc.get("content_type", "image/webp")
+            return None
+        else:
+            img = self._memory_data.get("images", {}).get(image_id)
+            if img:
+                data = base64.b64decode(img["data"])
+                return data, img.get("content_type", "image/webp")
+            return None
 
 db = DatabaseManager()
 

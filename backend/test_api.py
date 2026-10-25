@@ -35,6 +35,18 @@ async def test_backend():
     print(f"Logs count: {len(logs)}")
     assert len(logs) >= 2
 
+    # Test image storage in MongoDB
+    print("Testing image storage in database...")
+    sample_bytes = b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+    img_id = await db.save_image(sample_bytes, content_type="image/gif", filename="test.gif")
+    assert img_id.startswith("img-"), f"Invalid img_id: {img_id}"
+    fetched = await db.get_image(img_id)
+    assert fetched is not None
+    fetched_data, fetched_type = fetched
+    assert fetched_data == sample_bytes
+    assert fetched_type == "image/gif"
+    print(f"Image stored & retrieved successfully: {img_id}")
+
     print(" ALL BACKEND TESTS PASSED SUCCESSFULLY!")
 
 if __name__ == "__main__":

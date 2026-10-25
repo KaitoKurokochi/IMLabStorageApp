@@ -5,6 +5,7 @@ import json
 import uuid
 import shutil
 from typing import Optional, List
+from PIL import Image, ImageOps
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Response
 from fastapi.responses import StreamingResponse
 from app.models import ItemResponse, ItemCreate, ItemBorrowRequest, UsageLogResponse
@@ -43,19 +44,49 @@ async def create_item(item_in: ItemCreate):
 
 @router.post("/upload-image")
 async def upload_image(file: UploadFile = File(...)):
-    """備品画像のアップロード"""
+    """備品画像のアップロード (MongoDB保存 & 自動圧縮WebP変換)"""
     allowed_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-    ext = os.path.splitext(file.filename)[1].lower()
+    ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
     if ext not in allowed_exts:
         raise HTTPException(status_code=400, detail="許可されていない画像形式です。jpg/png/webp/gifをご使用ください。")
 
-    filename = f"{uuid.uuid4().hex}{ext}"
-    dest_path = os.path.join(settings.UPLOAD_DIR, filename)
+    contents = await file.read()
+    if len(contents) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="画像サイズは15MB以下にしてください。")
 
-    with open(dest_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    try:
+        # Optimize image with Pillow
+        image = Image.open(io.BytesIO(contents))
+        image = ImageOps.exif_transpose(image)
+        if image.mode in ("RGBA", "P"):
+            image = image.convert("RGBA")
+        else:
+            image = image.convert("RGB")
 
-    return {"url": f"/static/uploads/{filename}"}
+        # Resize if dimension > 1200
+        max_size = 1200
+        if image.width > max_size or image.height > max_size:
+            image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+
+        output = io.BytesIO()
+        image.save(output, format="WEBP", quality=82, method=4)
+        optimized_bytes = output.getvalue()
+
+        # Save to MongoDB
+        image_id = await db.save_image(
+            image_bytes=optimized_bytes,
+            content_type="image/webp",
+            filename=file.filename or "image.webp"
+        )
+        return {"url": f"/api/images/{image_id}"}
+    except Exception as e:
+        # Fallback to saving raw bytes
+        image_id = await db.save_image(
+            image_bytes=contents,
+            content_type=file.content_type or "image/jpeg",
+            filename=file.filename or "image"
+        )
+        return {"url": f"/api/images/{image_id}"}
 
 @router.get("/export/json")
 async def export_json():
