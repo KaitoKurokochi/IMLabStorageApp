@@ -43,7 +43,7 @@ export const AllItemsPage: React.FC = () => {
         item.description.toLowerCase().includes(q) ||
         (item.current_user_name || '').toLowerCase().includes(q) ||
         (item.last_user_name || '').toLowerCase().includes(q) ||
-        item.shelf_id.toLowerCase().includes(q);
+        (item.shelf_label || '').toLowerCase().includes(q);
       if (!match) return false;
     }
     return true;
@@ -143,7 +143,7 @@ export const AllItemsPage: React.FC = () => {
                 <option value="all">全区画</option>
                 {shelves.map((s) => (
                   <option key={s.id} value={s.id}>
-                    棚 {s.id}
+                    棚 {s.label}
                   </option>
                 ))}
               </select>

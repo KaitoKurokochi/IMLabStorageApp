@@ -4,8 +4,8 @@ import { User, api } from '../api/client';
 interface AuthContextType {
   currentUser: User | null;
   isLoading: boolean;
-  login: (name: string, grade: string) => Promise<User>;
-  register: (name: string, grade: string) => Promise<User>;
+  login: (firstName: string, lastName: string) => Promise<User>;
+  register: (firstName: string, lastName: string, grade: string) => Promise<User>;
   logout: () => void;
   setCurrentUser: (user: User | null) => void;
 }
@@ -40,14 +40,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = async (name: string, grade: string): Promise<User> => {
-    const user = await api.loginUser(name, grade);
+  const login = async (firstName: string, lastName: string): Promise<User> => {
+    const user = await api.loginUser(firstName, lastName);
     setCurrentUser(user);
     return user;
   };
 
-  const register = async (name: string, grade: string): Promise<User> => {
-    const user = await api.createUser(name, grade);
+  const register = async (firstName: string, lastName: string, grade: string): Promise<User> => {
+    const user = await api.createUser(firstName, lastName, grade);
     setCurrentUser(user);
     return user;
   };

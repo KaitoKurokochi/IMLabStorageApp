@@ -1,15 +1,20 @@
 export interface User {
   id: string;
-  name: string;
+  first_name: string;
+  last_name: string;
   grade: string;
   created_at: string;
 }
 
+// 画面に出すユーザー名 (名 姓)
+export const getUserDisplayName = (user: Pick<User, 'first_name' | 'last_name'>): string =>
+  `${user.first_name} ${user.last_name}`;
+
 export interface Shelf {
   id: string;
+  label: string;
   row: string;
   col: number;
-  name: string;
   description: string;
   item_count: number;
   available_count: number;
@@ -19,8 +24,10 @@ export interface Item {
   id: string;
   name: string;
   shelf_id: string;
+  shelf_label?: string | null;
   category: string;
   description: string;
+  image_id?: string | null;
   image_url?: string | null;
   status: "available" | "in_use";
   current_user_id?: string | null;
@@ -37,11 +44,19 @@ export interface UsageLog {
   item_name: string;
   user_id: string;
   user_name: string;
-  action: "borrow" | "return";
+  action: "register" | "delete" | "borrow" | "return";
   timestamp: string;
 }
 
-const RAW_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+// 利用履歴の action ごとのバッジの色
+export const LOG_ACTION_BADGE_CLASS: Record<UsageLog['action'], string> = {
+  register: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+  delete: 'bg-slate-100 text-slate-600 border border-slate-200',
+  borrow: 'bg-rose-50 text-rose-700 border border-rose-200',
+  return: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+};
+
+const RAW_BASE_URL =(import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const API_PREFIX = RAW_BASE_URL ? `${RAW_BASE_URL}/api` : '/api';
 
 export const getFullImageUrl = (path?: string | null): string | undefined => {
@@ -97,7 +112,8 @@ export const api = {
     shelf_id: string;
     category?: string;
     description?: string;
-    image_url?: string;
+    image_id?: string;
+    user_id: string;
   }): Promise<Item> {
     const res = await fetch(`${API_PREFIX}/items`, {
       method: 'POST',
@@ -111,7 +127,7 @@ export const api = {
     return res.json();
   },
 
-  async uploadImage(file: File): Promise<{ url: string }> {
+  async uploadImage(file: File): Promise<{ image_id: string }> {
     const formData = new FormData();
     formData.append('file', file);
     const res = await fetch(`${API_PREFIX}/items/upload-image`, {
@@ -151,8 +167,8 @@ export const api = {
     return res.json();
   },
 
-  async deleteItem(itemId: string): Promise<void> {
-    const res = await fetch(`${API_PREFIX}/items/${itemId}`, {
+  async deleteItem(itemId: string, userId: string): Promise<void> {
+    const res = await fetch(`${API_PREFIX}/items/${itemId}?user_id=${encodeURIComponent(userId)}`, {
       method: 'DELETE',
     });
     if (!res.ok) {
@@ -161,35 +177,18 @@ export const api = {
     }
   },
 
-  async clearDemoData(): Promise<{ status: string; deleted: Record<string, number> }> {
-    const res = await fetch(`${API_PREFIX}/items/admin/clear-demo-data`, {
-      method: 'POST',
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'ダミーデータの削除に失敗しました');
-    }
-    return res.json();
-  },
-
   // Users
-  async getUsers(): Promise<User[]> {
-    const res = await fetch(`${API_PREFIX}/users`);
-    if (!res.ok) throw new Error('ユーザー一覧の取得に失敗しました');
-    return res.json();
-  },
-
   async getUser(userId: string): Promise<{ user: User; borrowed_items: Item[]; logs: UsageLog[] }> {
     const res = await fetch(`${API_PREFIX}/users/${userId}`);
     if (!res.ok) throw new Error('ユーザー情報の取得に失敗しました');
     return res.json();
   },
 
-  async createUser(name: string, grade: string): Promise<User> {
+  async createUser(firstName: string, lastName: string, grade: string): Promise<User> {
     const res = await fetch(`${API_PREFIX}/users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, grade }),
+      body: JSON.stringify({ first_name: firstName, last_name: lastName, grade }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -198,11 +197,11 @@ export const api = {
     return res.json();
   },
 
-  async loginUser(name: string, grade: string): Promise<User> {
+  async loginUser(firstName: string, lastName: string): Promise<User> {
     const res = await fetch(`${API_PREFIX}/users/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, grade }),
+      body: JSON.stringify({ first_name: firstName, last_name: lastName }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
