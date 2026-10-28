@@ -1,10 +1,12 @@
 from datetime import datetime
 from typing import Annotated, Optional, Literal
-from pydantic import AliasChoices, BaseModel, BeforeValidator, ConfigDict, Field, StringConstraints
+from pydantic import AliasChoices, BaseModel, BeforeValidator, ConfigDict, Field, StringConstraints, computed_field
 
 # ---------------- Common ----------------
 # MongoDB の ObjectId を API では文字列として扱う
 PyObjectId = Annotated[str, BeforeValidator(str)]
+# 値がないとき (None) は None のまま、ある場合だけ文字列にする
+OptionalPyObjectId = Annotated[Optional[str], BeforeValidator(lambda v: None if v is None else str(v))]
 
 # ---------------- Users ----------------
 NameStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -37,10 +39,10 @@ class UserLoginRequest(BaseModel):
 
 # ---------------- Shelves ----------------
 class ShelfResponse(BaseModel):
-    id: str  # "A-1", "A-2", etc.
+    id: PyObjectId = Field(validation_alias=AliasChoices("_id", "id"))
+    label: str  # "A-1", "A-2", etc.
     row: str  # "A", "B", "C"
     col: int  # 1, 2, 3
-    name: str  # "棚 A-1"
     description: Optional[str] = ""
     item_count: int = 0
     available_count: int = 0
@@ -50,41 +52,49 @@ ItemStatus = Literal["available", "in_use"]
 
 class ItemBase(BaseModel):
     name: str = Field(..., min_length=1, description="備品名")
-    shelf_id: str = Field(..., description="保管棚ID (例: A-1)")
+    shelf_id: str = Field(..., description="保管棚ID (shelves._id)")
     category: Optional[str] = Field(default="その他", description="ジャンル/カテゴリ")
     description: Optional[str] = Field(default="", description="詳細情報")
-    image_url: Optional[str] = Field(default=None, description="備品画像URL")
+    image_id: Optional[str] = Field(default=None, description="備品画像ID (images._id)")
 
 class ItemCreate(ItemBase):
-    pass
+    user_id: str = Field(..., description="登録するユーザーのID")
 
 class ItemUpdate(BaseModel):
     name: Optional[str] = None
     shelf_id: Optional[str] = None
     category: Optional[str] = None
     description: Optional[str] = None
-    image_url: Optional[str] = None
+    image_id: Optional[str] = None
 
 class ItemResponse(ItemBase):
-    id: str
+    id: PyObjectId = Field(validation_alias=AliasChoices("_id", "id"))
+    shelf_id: PyObjectId
+    shelf_label: Optional[str] = None
+    image_id: OptionalPyObjectId = None
     status: ItemStatus = "available"
-    current_user_id: Optional[str] = None
+    current_user_id: OptionalPyObjectId = None
     current_user_name: Optional[str] = None
     last_user_name: Optional[str] = None
     last_used_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
+    @computed_field
+    @property
+    def image_url(self) -> Optional[str]:
+        return f"/api/images/{self.image_id}" if self.image_id else None
+
 class ItemBorrowRequest(BaseModel):
     user_id: str
 
 # ---------------- Usage Logs ----------------
 class UsageLogResponse(BaseModel):
-    id: str
-    item_id: str
+    id: PyObjectId = Field(validation_alias=AliasChoices("_id", "id"))
+    item_id: PyObjectId
     item_name: str
-    user_id: str
+    user_id: PyObjectId
     user_name: str
-    action: Literal["borrow", "return"]
+    action: Literal["register", "delete", "borrow", "return"]
     timestamp: datetime
 
