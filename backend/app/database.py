@@ -1,298 +1,130 @@
-import os
-import json
-import uuid
-import base64
 import asyncio
+import re
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.collation import Collation
-from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError
+from pymongo.errors import DuplicateKeyError
 from app.config import settings
-
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
-DATA_FILE = os.path.join(DATA_DIR, "db.json")
-os.makedirs(DATA_DIR, exist_ok=True)
+from app.seed import DEFAULT_SHELVES
 
 # ユーザー名の比較で大文字小文字を区別しない (一意インデックスと検索の両方で使う)
 USER_NAME_COLLATION = Collation(locale="en", strength=2)
 
-DEFAULT_SHELVES = [
-    {"id": "A-1", "row": "A", "col": 1, "name": "棚 A-1", "description": "上段 1列目 (VR・HMD関連)"},
-    {"id": "A-2", "row": "A", "col": 2, "name": "棚 A-2", "description": "上段 2列目 (コントローラ・センサ)"},
-    {"id": "A-3", "row": "A", "col": 3, "name": "棚 A-3", "description": "上段 3列目 (光学機器・カメラ)"},
-    {"id": "A-4", "row": "A", "col": 4, "name": "棚 A-4", "description": "上段 4列目"},
-    {"id": "A-5", "row": "A", "col": 5, "name": "棚 A-5", "description": "上段 5列目"},
-    {"id": "A-6-1", "row": "A", "col": 6, "name": "棚 A-6-1", "description": "上段 6列目 下段左"},
-    {"id": "A-6-2", "row": "A", "col": 6, "name": "棚 A-6-2", "description": "上段 6列目 下段右"},
-    {"id": "B-1", "row": "B", "col": 1, "name": "棚 B-1", "description": "中段 1列目 (GPU・PCパーツ)"},
-    {"id": "B-2", "row": "B", "col": 2, "name": "棚 B-2", "description": "中段 2列目 (マイコン・基板)"},
-    {"id": "B-3-1", "row": "B", "col": 3, "name": "棚 B-3-1", "description": "中段 3列目 左上 (2x2)"},
-    {"id": "B-3-2", "row": "B", "col": 3, "name": "棚 B-3-2", "description": "中段 3列目 右上 (2x2)"},
-    {"id": "B-3-3", "row": "B", "col": 3, "name": "棚 B-3-3", "description": "中段 3列目 左下 (2x2)"},
-    {"id": "B-3-4", "row": "B", "col": 3, "name": "棚 B-3-4", "description": "中段 3列目 右下 (2x2)"},
-    {"id": "B-4-1", "row": "B", "col": 4, "name": "棚 B-4-1", "description": "中段 4列目 左上 (2x2)"},
-    {"id": "B-4-2", "row": "B", "col": 4, "name": "棚 B-4-2", "description": "中段 4列目 右上 (2x2)"},
-    {"id": "B-4-3", "row": "B", "col": 4, "name": "棚 B-4-3", "description": "中段 4列目 左下 (2x2)"},
-    {"id": "B-4-4", "row": "B", "col": 4, "name": "棚 B-4-4", "description": "中段 4列目 右下 (2x2)"},
-    {"id": "B-5", "row": "B", "col": 5, "name": "棚 B-5", "description": "中段 5列目"},
-    {"id": "B-6", "row": "B", "col": 6, "name": "棚 B-6", "description": "中段 6列目 (ケーブル・変換アダプタ)"},
-    {"id": "C-1", "row": "C", "col": 1, "name": "棚 C-1", "description": "下段 1列目 (電動工具・工作用具)"},
-    {"id": "C-2", "row": "C", "col": 2, "name": "棚 C-2", "description": "下段 2列目 (3Dプリンタ備品・フィラメント)"},
-    {"id": "C-3", "row": "C", "col": 3, "name": "棚 C-3", "description": "下段 3列目 (計測器・オシロスコープ)"},
-    {"id": "C-4", "row": "C", "col": 4, "name": "棚 C-4", "description": "下段 4列目"},
-    {"id": "C-5", "row": "C", "col": 5, "name": "棚 C-5", "description": "下段 5列目"},
-    {"id": "C-6-1", "row": "C", "col": 6, "name": "棚 C-6-1", "description": "下段 6列目 1段目左 (3x2)"},
-    {"id": "C-6-2", "row": "C", "col": 6, "name": "棚 C-6-2", "description": "下段 6列目 1段目右 (3x2)"},
-    {"id": "C-6-3", "row": "C", "col": 6, "name": "棚 C-6-3", "description": "下段 6列目 2段目左 (3x2)"},
-    {"id": "C-6-4", "row": "C", "col": 6, "name": "棚 C-6-4", "description": "下段 6列目 2段目右 (3x2)"},
-    {"id": "C-6-5", "row": "C", "col": 6, "name": "棚 C-6-5", "description": "下段 6列目 3段目左 (3x2)"},
-    {"id": "C-6-6", "row": "C", "col": 6, "name": "棚 C-6-6", "description": "下段 6列目 3段目右 (3x2)"},
-]
 
-DEFAULT_USERS = [
-    {"id": "user-1", "name": "杉本 教授", "grade": "教員", "created_at": datetime.now().isoformat()},
-    {"id": "user-2", "name": "山田 太郎", "grade": "M1", "created_at": datetime.now().isoformat()},
-    {"id": "user-3", "name": "佐藤 花子", "grade": "B4", "created_at": datetime.now().isoformat()},
-]
+def get_user_display_name(user: Dict[str, Any]) -> str:
+    """画面に出すユーザー名 (名 姓)"""
+    return f"{user['first_name']} {user['last_name']}"
 
-DEFAULT_ITEMS = [
-    {
-        "id": "item-1",
-        "name": "Meta Quest 3 (128GB)",
-        "shelf_id": "A-1",
-        "category": "VR",
-        "description": "研究用スタンドアロンVRヘッドセット。両手コントローラ・充電器付属。",
-        "image_url": "https://images.unsplash.com/photo-1593508512255-86ab42a8e620?w=600&auto=format&fit=crop&q=80",
-        "status": "in_use",
-        "current_user_id": "user-2",
-        "current_user_name": "山田 太郎",
-        "last_user_name": "山田 太郎",
-        "last_used_at": datetime.now().isoformat(),
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-    },
-    {
-        "id": "item-2",
-        "name": "HTC Vive Pro 2 フルセット",
-        "shelf_id": "A-1",
-        "category": "VR",
-        "description": "ベースステーション2.0 ×2、コントローラ×2同梱。PC接続用DisplayPortケーブルあり。",
-        "image_url": "https://images.unsplash.com/photo-1622979135225-d2ba269bc1df?w=600&auto=format&fit=crop&q=80",
-        "status": "available",
-        "current_user_id": None,
-        "current_user_name": None,
-        "last_user_name": "山田 太郎",
-        "last_used_at": datetime.now().isoformat(),
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-    },
-    {
-        "id": "item-3",
-        "name": "NVIDIA GeForce RTX 4090",
-        "shelf_id": "B-1",
-        "category": "GPU/PC",
-        "description": "深層学習実験用GPU。16ピン電源変換コネクタ付属。静電防止袋に保管のこと。",
-        "image_url": "https://images.unsplash.com/photo-1587202372775-e229f172b9d7?w=600&auto=format&fit=crop&q=80",
-        "status": "available",
-        "current_user_id": None,
-        "current_user_name": None,
-        "last_user_name": "佐藤 花子",
-        "last_used_at": datetime.now().isoformat(),
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-    },
-    {
-        "id": "item-4",
-        "name": "Arduino Uno R3 スターターキット",
-        "shelf_id": "B-2",
-        "category": "基板/センサ",
-        "description": "ブレッドボード、ジャンパ線、基本センサ類一式がケースに収納されています。",
-        "image_url": "https://images.unsplash.com/photo-1553406830-ef2513450d76?w=600&auto=format&fit=crop&q=80",
-        "status": "available",
-        "current_user_id": None,
-        "current_user_name": None,
-        "last_user_name": None,
-        "last_used_at": None,
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-    },
-    {
-        "id": "item-5",
-        "name": "Bambu Lab PLA フィラメント (白)",
-        "shelf_id": "C-2",
-        "category": "3Dプリンタ",
-        "description": "1.75mm 高速PLAフィラメント。乾燥剤と一緒に密封バッグで保管してください。",
-        "image_url": "https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=600&auto=format&fit=crop&q=80",
-        "status": "available",
-        "current_user_id": None,
-        "current_user_name": None,
-        "last_user_name": None,
-        "last_used_at": None,
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-    },
-    {
-        "id": "item-6",
-        "name": "Rigol デジタルオシロスコープ 100MHz",
-        "shelf_id": "C-3",
-        "category": "計測器",
-        "description": "DS1102Z-E 2ch 100MHz。プローブ2本付属。精密機器のため取り扱い注意。",
-        "image_url": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&auto=format&fit=crop&q=80",
-        "status": "available",
-        "current_user_id": None,
-        "current_user_name": None,
-        "last_user_name": "杉本 教授",
-        "last_used_at": datetime.now().isoformat(),
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-    }
-]
-
-DEFAULT_LOGS = [
-    {
-        "id": "log-1",
-        "item_id": "item-1",
-        "item_name": "Meta Quest 3 (128GB)",
-        "user_id": "user-2",
-        "user_name": "山田 太郎",
-        "action": "borrow",
-        "timestamp": datetime.now().isoformat()
-    }
-]
 
 class DatabaseManager:
     def __init__(self):
-        self.is_mongo = False
         self.client: Optional[AsyncIOMotorClient] = None
         self.db = None
-        self._memory_data: Dict[str, List[Dict[str, Any]]] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self):
-        """Attempts to connect to MongoDB, falls back to local JSON storage."""
-        try:
-            client = AsyncIOMotorClient(
-                settings.MONGODB_URL,
-                serverSelectionTimeoutMS=1500,
-                tz_aware=True
-            )
-            # Check connection
-            await client.admin.command('ping')
-            self.client = client
-            self.db = client[settings.DATABASE_NAME]
-            self.is_mongo = True
-            print(" Connected to MongoDB successfully.")
-            await self._ensure_user_indexes()
-            await self._seed_mongo_if_empty()
-        except Exception as e:
-            print(f"⚠️ MongoDB connection failed ({e}). Using file-backed JSON repository at {DATA_FILE}")
-            self.is_mongo = False
-            self._load_file_data()
-
-    def _load_file_data(self):
-        if os.path.exists(DATA_FILE):
-            try:
-                with open(DATA_FILE, "r", encoding="utf-8") as f:
-                    self._memory_data = json.load(f)
-                    return
-            except Exception as e:
-                print(f"Error loading {DATA_FILE}: {e}")
-        
-        if settings.SEED_DEMO_DATA:
-            self._memory_data = {
-                "shelves": DEFAULT_SHELVES,
-                "users": DEFAULT_USERS,
-                "items": DEFAULT_ITEMS,
-                "usage_logs": DEFAULT_LOGS,
-                "images": {},
-            }
-        else:
-            self._memory_data = {
-                "shelves": DEFAULT_SHELVES,
-                "users": [],
-                "items": [],
-                "usage_logs": [],
-                "images": {},
-            }
-        self._save_file_data()
-
-    def _save_file_data(self):
-        try:
-            with open(DATA_FILE, "w", encoding="utf-8") as f:
-                json.dump(self._memory_data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"Error saving {DATA_FILE}: {e}")
-
-    async def _ensure_user_indexes(self):
-        # users の重複登録を防止(作成済みなら何もしない)
-        await self.db.users.create_index(
-            [("first_name", 1), ("last_name", 1)],
-            unique=True, 
-            collation=USER_NAME_COLLATION,
+        """MongoDB に接続する。繋がらなければ例外で起動を止める。"""
+        client = AsyncIOMotorClient(
+            settings.MONGODB_URL,
+            serverSelectionTimeoutMS=1500,
+            tz_aware=True
         )
+        await client.admin.command('ping')
+        self.client = client
+        self.db = client[settings.DATABASE_NAME]
+        print(" Connected to MongoDB successfully.")
+        await self._ensure_indexes()
+        await self._seed_shelves_if_empty()
 
-    def _require_mongo(self):
-        if not self.is_mongo:
-            raise RuntimeError("This operation requires MongoDB.")
+    async def _ensure_indexes(self):
+        # 起動のたびに呼ばれるが、作成済みなら何もしない
+        await self.db.users.create_index(
+            [("first_name", 1), ("last_name", 1)],  # 名 + 姓の組み合わせ
+            unique=True,                            # 重複を禁止
+            collation=USER_NAME_COLLATION,          # 大文字小文字は区別しない
+        )
+        await self.db.shelves.create_index("label", unique=True)
+        await self.db.usage_logs.create_index([("item_id", 1), ("timestamp", -1)])
 
-    async def _seed_mongo_if_empty(self):
-        if not self.is_mongo:
-            return
-        shelves_count = await self.db.shelves.count_documents({})
-        if shelves_count == 0:
-            print("🌱 Seeding MongoDB shelves (A-1 to C-3)...")
-            await self.db.shelves.insert_many([dict(s, _id=s["id"]) for s in DEFAULT_SHELVES])
-            if settings.SEED_DEMO_DATA:
-                print("🌱 Seeding demo users, items, and logs...")
-                await self.db.users.insert_many([dict(u, _id=u["id"]) for u in DEFAULT_USERS])
-                await self.db.items.insert_many([dict(i, _id=i["id"]) for i in DEFAULT_ITEMS])
-                await self.db.usage_logs.insert_many([dict(l, _id=l["id"]) for l in DEFAULT_LOGS])
+    async def _seed_shelves_if_empty(self):
+        if await self.db.shelves.count_documents({}) == 0:
+            print("🌱 Seeding MongoDB shelves (A-1 to C-6-6)...")
+            await self.db.shelves.insert_many([dict(s) for s in DEFAULT_SHELVES])
+
+    # ---------------- Item state (usage_logs から導出) ----------------
+    async def _get_item_states(self, item_ids: List[ObjectId]) -> Dict[ObjectId, Dict[str, Any]]:
+        """備品ごとの現在の状態を、最新の borrow / return のログから導く"""
+        states = {
+            item_id: {"status": "available", "current_user_id": None, "last_user_id": None, "last_used_at": None}
+            for item_id in item_ids
+        }
+        if not item_ids:
+            return states
+
+        latest_logs = self.db.usage_logs.aggregate([
+            {"$match": {"item_id": {"$in": item_ids}, "action": {"$in": ["borrow", "return"]}}},
+            {"$sort": {"timestamp": -1, "_id": -1}},
+            {"$group": {
+                "_id": "$item_id",
+                "action": {"$first": "$action"},
+                "user_id": {"$first": "$user_id"},
+                "timestamp": {"$first": "$timestamp"},
+            }},
+        ])
+        async for log in latest_logs:
+            is_borrowed = log["action"] == "borrow"
+            states[log["_id"]] = {
+                "status": "in_use" if is_borrowed else "available",
+                "current_user_id": log["user_id"] if is_borrowed else None,
+                "last_user_id": log["user_id"],
+                "last_used_at": log["timestamp"],
+            }
+        return states
 
     # ---------------- Shelves ----------------
-    async def get_shelves(self) -> List[Dict[str, Any]]:
-        if self.is_mongo:
-            cursor = self.db.shelves.find()
-            shelves = []
-            async for doc in cursor:
-                doc["id"] = str(doc.get("_id", doc.get("id")))
-                shelves.append(doc)
-        else:
-            shelves = list(self._memory_data.get("shelves", []))
+    async def _attach_item_counts(self, shelves: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """各棚に、備品の数 (item_count) と貸出可能な数 (available_count) を付ける"""
+        items = await self.db.items.find(
+            {"shelf_id": {"$in": [s["_id"] for s in shelves]}, "deleted_at": None},
+            {"shelf_id": 1},
+        ).to_list(None)
+        states = await self._get_item_states([i["_id"] for i in items])
 
-        # Attach item counts
-        items = await self.get_items()
         for shelf in shelves:
-            shelf_items = [i for i in items if i.get("shelf_id") == shelf["id"]]
-            shelf["item_count"] = len(shelf_items)
-            shelf["available_count"] = len([i for i in shelf_items if i.get("status") == "available"])
-        
-        return sorted(shelves, key=lambda s: (s.get("row", ""), s.get("col", 0), s.get("id", "")))
+            item_ids = [i["_id"] for i in items if i["shelf_id"] == shelf["_id"]]
+            shelf["item_count"] = len(item_ids)
+            shelf["available_count"] = sum(1 for i in item_ids if states[i]["status"] == "available")
+        return shelves
+
+    async def get_shelves(self) -> List[Dict[str, Any]]:
+        shelves = await self.db.shelves.find().to_list(None)
+        await self._attach_item_counts(shelves)
+        return sorted(shelves, key=lambda s: (s["row"], s["col"], s["label"]))
 
     async def get_shelf(self, shelf_id: str) -> Optional[Dict[str, Any]]:
-        shelves = await self.get_shelves()
-        for s in shelves:
-            if s["id"] == shelf_id:
-                return s
-        return None
+        if not ObjectId.is_valid(shelf_id):
+            return None
+        shelf = await self.db.shelves.find_one({"_id": ObjectId(shelf_id)})
+        if not shelf:
+            return None
+        await self._attach_item_counts([shelf])
+        return shelf
 
     # ---------------- Users ----------------
     async def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
-        self._require_mongo()
         if not ObjectId.is_valid(user_id):
             return None
         return await self.db.users.find_one({"_id": ObjectId(user_id)})
 
     async def find_user_by_name(self, first_name: str, last_name: str) -> Optional[Dict[str, Any]]:
-        self._require_mongo()
         return await self.db.users.find_one(
             {"first_name": first_name, "last_name": last_name},
             collation=USER_NAME_COLLATION,
         )
 
     async def create_user(self, first_name: str, last_name: str, grade: str) -> Dict[str, Any]:
-        self._require_mongo()
         user = {
             "first_name": first_name,
             "last_name": last_name,
@@ -314,298 +146,153 @@ class DatabaseManager:
         category: Optional[str] = None,
         user_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        if self.is_mongo:
-            mongo_filter: Dict[str, Any] = {}
-            if shelf_id:
-                mongo_filter["shelf_id"] = shelf_id
-            if status:
-                mongo_filter["status"] = status
-            if category:
-                mongo_filter["category"] = category
-            if user_id:
-                mongo_filter["current_user_id"] = user_id
-            cursor = self.db.items.find(mongo_filter)
-            items = []
-            async for doc in cursor:
-                doc["id"] = str(doc.get("_id", doc.get("id")))
-                items.append(doc)
-        else:
-            items = list(self._memory_data.get("items", []))
-            if shelf_id:
-                items = [i for i in items if i.get("shelf_id") == shelf_id]
-            if status:
-                items = [i for i in items if i.get("status") == status]
-            if category:
-                items = [i for i in items if i.get("category") == category]
-            if user_id:
-                items = [i for i in items if i.get("current_user_id") == user_id]
-
+        mongo_filter: Dict[str, Any] = {"deleted_at": None}
+        if shelf_id:
+            if not ObjectId.is_valid(shelf_id):
+                return []
+            mongo_filter["shelf_id"] = ObjectId(shelf_id)
+        if category:
+            mongo_filter["category"] = category
         if query:
-            q = query.lower()
-            items = [
-                i for i in items
-                if q in i.get("name", "").lower()
-                or q in i.get("description", "").lower()
-                or q in i.get("shelf_id", "").lower()
-                or q in i.get("category", "").lower()
-                or q in (i.get("current_user_name") or "").lower()
-                or q in (i.get("last_user_name") or "").lower()
-            ]
+            pattern = {"$regex": re.escape(query), "$options": "i"}
+            mongo_filter["$or"] = [{"name": pattern}, {"description": pattern}, {"category": pattern}]
+
+        items = await self.db.items.find(mongo_filter).to_list(None)
+        await self._attach_item_states(items)
+
+        # status と使用者は、ログから導いた値なので、導いたあとに絞る
+        if status:
+            items = [i for i in items if i["status"] == status]
+        if user_id:
+            items = [i for i in items if str(i["current_user_id"]) == user_id]
         return items
 
     async def get_item(self, item_id: str) -> Optional[Dict[str, Any]]:
-        if self.is_mongo:
-            doc = await self.db.items.find_one({"$or": [{"_id": item_id}, {"id": item_id}]})
-            if doc:
-                doc["id"] = str(doc.get("_id", doc.get("id")))
-                return doc
+        if not ObjectId.is_valid(item_id):
             return None
-        else:
-            for item in self._memory_data.get("items", []):
-                if item["id"] == item_id:
-                    return item
+        item = await self.db.items.find_one({"_id": ObjectId(item_id), "deleted_at": None})
+        if not item:
             return None
+        await self._attach_item_states([item])
+        return item
 
-    async def create_item(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        async with self._lock:
-            now = datetime.now().isoformat()
-            item_id = f"item-{uuid.uuid4().hex[:8]}"
-            item = {
-                "id": item_id,
-                "name": data["name"],
-                "shelf_id": data["shelf_id"],
-                "category": data.get("category", "その他"),
-                "description": data.get("description", ""),
-                "image_url": data.get("image_url"),
-                "status": "available",
-                "current_user_id": None,
-                "current_user_name": None,
-                "last_user_name": None,
-                "last_used_at": None,
-                "created_at": now,
-                "updated_at": now,
-            }
-            if self.is_mongo:
-                await self.db.items.insert_one(dict(item, _id=item_id))
-            else:
-                self._memory_data.setdefault("items", []).append(item)
-                self._save_file_data()
-            return item
+    async def _attach_item_states(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """備品に、ログから導いた状態と、表示用の名前 (使用者の名前、棚の label) を付ける"""
+        states = await self._get_item_states([i["_id"] for i in items])
+        user_ids = {uid for s in states.values() for uid in (s["current_user_id"], s["last_user_id"]) if uid}
+        users = await self.db.users.find({"_id": {"$in": list(user_ids)}}).to_list(None)
+        user_names = {u["_id"]: get_user_display_name(u) for u in users}
+        shelves = await self.db.shelves.find({"_id": {"$in": list({i["shelf_id"] for i in items})}}, {"label": 1}).to_list(None)
+        shelf_labels = {s["_id"]: s["label"] for s in shelves}
 
-    async def delete_item(self, item_id: str) -> bool:
-        async with self._lock:
-            if self.is_mongo:
-                res = await self.db.items.delete_one({"$or": [{"_id": item_id}, {"id": item_id}]})
-                return res.deleted_count > 0
-            else:
-                items = self._memory_data.get("items", [])
-                initial_len = len(items)
-                self._memory_data["items"] = [i for i in items if i["id"] != item_id]
-                deleted = len(self._memory_data["items"]) < initial_len
-                if deleted:
-                    self._save_file_data()
-                return deleted
+        for item in items:
+            state = states[item["_id"]]
+            item.update(state)
+            item["current_user_name"] = user_names.get(state["current_user_id"])
+            item["last_user_name"] = user_names.get(state["last_user_id"])
+            item["shelf_label"] = shelf_labels.get(item["shelf_id"])
+        return items
 
-    async def clear_demo_data(self) -> Dict[str, int]:
-        """ダミー備品 (item-1〜6) とダミーユーザー (user-1〜3)、および関連ログを一括削除"""
-        demo_item_ids = [d["id"] for d in DEFAULT_ITEMS]
-        demo_user_ids = [d["id"] for d in DEFAULT_USERS]
-        async with self._lock:
-            if self.is_mongo:
-                items_res = await self.db.items.delete_many({"$or": [{"_id": {"$in": demo_item_ids}}, {"id": {"$in": demo_item_ids}}]})
-                users_res = await self.db.users.delete_many({"$or": [{"_id": {"$in": demo_user_ids}}, {"id": {"$in": demo_user_ids}}]})
-                logs_res = await self.db.usage_logs.delete_many({"$or": [{"user_id": {"$in": demo_user_ids}}, {"item_id": {"$in": demo_item_ids}}]})
-                return {
-                    "deleted_items": items_res.deleted_count,
-                    "deleted_users": users_res.deleted_count,
-                    "deleted_logs": logs_res.deleted_count
-                }
-            else:
-                items_before = len(self._memory_data.get("items", []))
-                users_before = len(self._memory_data.get("users", []))
-                logs_before = len(self._memory_data.get("usage_logs", []))
+    async def create_item(self, data: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
+        """備品を登録して、register のログを残す"""
+        now = datetime.now(timezone.utc)
+        item = {
+            "name": data["name"],
+            "shelf_id": ObjectId(data["shelf_id"]),
+            "category": data.get("category", "その他"),
+            "description": data.get("description", ""),
+            "image_id": ObjectId(data["image_id"]) if data.get("image_id") else None,
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+        }
+        res = await self.db.items.insert_one(item)
+        await self.create_log(res.inserted_id, user["_id"], "register")
+        return await self.get_item(str(res.inserted_id))
 
-                self._memory_data["items"] = [
-                    i for i in self._memory_data.get("items", [])
-                    if i["id"] not in demo_item_ids
-                ]
-                self._memory_data["users"] = [
-                    u for u in self._memory_data.get("users", [])
-                    if u["id"] not in demo_user_ids
-                ]
-                self._memory_data["usage_logs"] = [
-                    l for l in self._memory_data.get("usage_logs", [])
-                    if l.get("user_id") not in demo_user_ids and l.get("item_id") not in demo_item_ids
-                ]
-                self._save_file_data()
-                return {
-                    "deleted_items": items_before - len(self._memory_data["items"]),
-                    "deleted_users": users_before - len(self._memory_data["users"]),
-                    "deleted_logs": logs_before - len(self._memory_data["usage_logs"])
-                }
+    async def delete_item(self, item_id: str, user: Dict[str, Any]) -> bool:
+        """備品を論理削除して、delete のログを残す。見つからなければ False"""
+        if not ObjectId.is_valid(item_id):
+            return False
+        now = datetime.now(timezone.utc)
+        res = await self.db.items.update_one(
+            {"_id": ObjectId(item_id), "deleted_at": None},
+            {"$set": {"deleted_at": now, "updated_at": now}},
+        )
+        if res.matched_count == 0:
+            return False
+        await self.create_log(ObjectId(item_id), user["_id"], "delete")
+        return True
 
-    async def borrow_item(self, item_id: str, user_id: str, user_name: str) -> Optional[Dict[str, Any]]:
+    async def borrow_item(self, item_id: str, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         async with self._lock:
             item = await self.get_item(item_id)
             if not item:
                 return None
-            
-            now = datetime.now().isoformat()
-            update_data = {
-                "status": "in_use",
-                "current_user_id": user_id,
-                "current_user_name": user_name,
-                "last_user_name": user_name,
-                "last_used_at": now,
-                "updated_at": now,
-            }
+            await self.create_log(item["_id"], user["_id"], "borrow")
+            return await self.get_item(item_id)
 
-            if self.is_mongo:
-                await self.db.items.update_one(
-                    {"$or": [{"_id": item_id}, {"id": item_id}]},
-                    {"$set": update_data}
-                )
-            else:
-                for i in self._memory_data.get("items", []):
-                    if i["id"] == item_id:
-                        i.update(update_data)
-                        break
-                self._save_file_data()
-
-            # Record log
-            await self.create_log(
-                item_id=item_id,
-                item_name=item["name"],
-                user_id=user_id,
-                user_name=user_name,
-                action="borrow"
-            )
-
-            item.update(update_data)
-            return item
-
-    async def return_item(self, item_id: str, user_id: Optional[str] = None, user_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def return_item(self, item_id: str, user: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        """返却する。user を省略すると、使用中のユーザーが返却したことにする"""
         async with self._lock:
             item = await self.get_item(item_id)
             if not item:
                 return None
-
-            now = datetime.now().isoformat()
-            returned_by_name = user_name or item.get("current_user_name") or "不明"
-            returned_by_id = user_id or item.get("current_user_id") or "unknown"
-
-            update_data = {
-                "status": "available",
-                "current_user_id": None,
-                "current_user_name": None,
-                "last_user_name": returned_by_name,
-                "last_used_at": now,
-                "updated_at": now,
-            }
-
-            if self.is_mongo:
-                await self.db.items.update_one(
-                    {"$or": [{"_id": item_id}, {"id": item_id}]},
-                    {"$set": update_data}
-                )
-            else:
-                for i in self._memory_data.get("items", []):
-                    if i["id"] == item_id:
-                        i.update(update_data)
-                        break
-                self._save_file_data()
-
-            # Record log
-            await self.create_log(
-                item_id=item_id,
-                item_name=item["name"],
-                user_id=returned_by_id,
-                user_name=returned_by_name,
-                action="return"
-            )
-
-            item.update(update_data)
-            return item
+            if item["status"] != "in_use":
+                return item
+            returned_by = user["_id"] if user else item["current_user_id"]
+            await self.create_log(item["_id"], returned_by, "return")
+            return await self.get_item(item_id)
 
     # ---------------- Usage Logs ----------------
-    async def create_log(self, item_id: str, item_name: str, user_id: str, user_name: str, action: str) -> Dict[str, Any]:
-        log_id = f"log-{uuid.uuid4().hex[:8]}"
-        log_entry = {
-            "id": log_id,
+    async def create_log(self, item_id: ObjectId, user_id: ObjectId, action: str) -> Dict[str, Any]:
+        """action: register / delete / borrow / return"""
+        log = {
             "item_id": item_id,
-            "item_name": item_name,
             "user_id": user_id,
-            "user_name": user_name,
             "action": action,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc),
         }
-        if self.is_mongo:
-            await self.db.usage_logs.insert_one(dict(log_entry, _id=log_id))
-        else:
-            self._memory_data.setdefault("usage_logs", []).append(log_entry)
-            self._save_file_data()
-        return log_entry
+        res = await self.db.usage_logs.insert_one(log)
+        return dict(log, _id=res.inserted_id)
 
     async def get_logs(self, item_id: Optional[str] = None, user_id: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
-        if self.is_mongo:
-            query: Dict[str, Any] = {}
-            if item_id:
-                query["item_id"] = item_id
-            if user_id:
-                query["user_id"] = user_id
-            cursor = self.db.usage_logs.find(query).sort("timestamp", -1).limit(limit)
-            logs = []
-            async for doc in cursor:
-                doc["id"] = str(doc.get("_id", doc.get("id")))
-                logs.append(doc)
-            return logs
-        else:
-            logs = list(self._memory_data.get("usage_logs", []))
-            if item_id:
-                logs = [l for l in logs if l.get("item_id") == item_id]
-            if user_id:
-                logs = [l for l in logs if l.get("user_id") == user_id]
-            logs = sorted(logs, key=lambda l: l.get("timestamp", ""), reverse=True)
-            return logs[:limit]
+        query: Dict[str, Any] = {}
+        for field, value in (("item_id", item_id), ("user_id", user_id)):
+            if value:
+                if not ObjectId.is_valid(value):
+                    return []
+                query[field] = ObjectId(value)
+        logs = await self.db.usage_logs.find(query).sort([("timestamp", -1), ("_id", -1)]).limit(limit).to_list(None)
+
+        # 表示用に、備品名とユーザー名を ID から引いて付ける
+        items = await self.db.items.find({"_id": {"$in": [l["item_id"] for l in logs]}}, {"name": 1}).to_list(None)
+        users = await self.db.users.find({"_id": {"$in": [l["user_id"] for l in logs]}}).to_list(None)
+        item_names = {i["_id"]: i["name"] for i in items}
+        user_names = {u["_id"]: get_user_display_name(u) for u in users}
+        for log in logs:
+            log["item_name"] = item_names.get(log["item_id"], "不明")
+            log["user_name"] = user_names.get(log["user_id"], "不明")
+        return logs
 
     # ---------------- Images (MongoDB Binary Storage) ----------------
     async def save_image(self, image_bytes: bytes, content_type: str = "image/webp", filename: str = "") -> str:
-        image_id = f"img-{uuid.uuid4().hex[:12]}"
-        now = datetime.now().isoformat()
-        if self.is_mongo:
-            await self.db.images.insert_one({
-                "_id": image_id,
-                "data": image_bytes,
-                "content_type": content_type,
-                "filename": filename,
-                "size": len(image_bytes),
-                "created_at": now
-            })
-        else:
-            async with self._lock:
-                self._memory_data.setdefault("images", {})[image_id] = {
-                    "data": base64.b64encode(image_bytes).decode("ascii"),
-                    "content_type": content_type,
-                    "filename": filename,
-                    "size": len(image_bytes),
-                    "created_at": now
-                }
-                self._save_file_data()
-        return image_id
+        res = await self.db.images.insert_one({
+            "data": image_bytes,
+            "content_type": content_type,
+            "filename": filename,
+            "size": len(image_bytes),
+            "created_at": datetime.now(timezone.utc),
+        })
+        return str(res.inserted_id)
 
     async def get_image(self, image_id: str) -> Optional[tuple[bytes, str]]:
-        if self.is_mongo:
-            doc = await self.db.images.find_one({"_id": image_id})
-            if doc:
-                data = doc["data"]
-                return bytes(data), doc.get("content_type", "image/webp")
+        if not ObjectId.is_valid(image_id):
             return None
-        else:
-            img = self._memory_data.get("images", {}).get(image_id)
-            if img:
-                data = base64.b64decode(img["data"])
-                return data, img.get("content_type", "image/webp")
+        doc = await self.db.images.find_one({"_id": ObjectId(image_id)})
+        if not doc:
             return None
+        return bytes(doc["data"]), doc["content_type"]
 
 db = DatabaseManager()
 
