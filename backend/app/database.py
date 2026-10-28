@@ -3,15 +3,20 @@ import json
 import uuid
 import base64
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import ServerSelectionTimeoutError
+from pymongo.collation import Collation
+from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError
 from app.config import settings
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 DATA_FILE = os.path.join(DATA_DIR, "db.json")
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# ユーザー名の比較で大文字小文字を区別しない (一意インデックスと検索の両方で使う)
+USER_NAME_COLLATION = Collation(locale="en", strength=2)
 
 DEFAULT_SHELVES = [
     {"id": "A-1", "row": "A", "col": 1, "name": "棚 A-1", "description": "上段 1列目 (VR・HMD関連)"},
@@ -170,7 +175,8 @@ class DatabaseManager:
         try:
             client = AsyncIOMotorClient(
                 settings.MONGODB_URL,
-                serverSelectionTimeoutMS=1500
+                serverSelectionTimeoutMS=1500,
+                tz_aware=True
             )
             # Check connection
             await client.admin.command('ping')
@@ -178,6 +184,7 @@ class DatabaseManager:
             self.db = client[settings.DATABASE_NAME]
             self.is_mongo = True
             print(" Connected to MongoDB successfully.")
+            await self._ensure_user_indexes()
             await self._seed_mongo_if_empty()
         except Exception as e:
             print(f"⚠️ MongoDB connection failed ({e}). Using file-backed JSON repository at {DATA_FILE}")
@@ -217,6 +224,18 @@ class DatabaseManager:
                 json.dump(self._memory_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"Error saving {DATA_FILE}: {e}")
+
+    async def _ensure_user_indexes(self):
+        # users の重複登録を防止(作成済みなら何もしない)
+        await self.db.users.create_index(
+            [("first_name", 1), ("last_name", 1)],
+            unique=True, 
+            collation=USER_NAME_COLLATION,
+        )
+
+    def _require_mongo(self):
+        if not self.is_mongo:
+            raise RuntimeError("This operation requires MongoDB.")
 
     async def _seed_mongo_if_empty(self):
         if not self.is_mongo:
@@ -259,58 +278,32 @@ class DatabaseManager:
         return None
 
     # ---------------- Users ----------------
-    async def get_users(self) -> List[Dict[str, Any]]:
-        if self.is_mongo:
-            cursor = self.db.users.find()
-            users = []
-            async for doc in cursor:
-                doc["id"] = str(doc.get("_id", doc.get("id")))
-                users.append(doc)
-            return users
-        else:
-            return list(self._memory_data.get("users", []))
-
     async def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
-        if self.is_mongo:
-            doc = await self.db.users.find_one({"$or": [{"_id": user_id}, {"id": user_id}]})
-            if doc:
-                doc["id"] = str(doc.get("_id", doc.get("id")))
-                return doc
+        self._require_mongo()
+        if not ObjectId.is_valid(user_id):
             return None
-        else:
-            for u in self._memory_data.get("users", []):
-                if u["id"] == user_id:
-                    return u
-            return None
+        return await self.db.users.find_one({"_id": ObjectId(user_id)})
 
-    async def find_user_by_name_grade(self, name: str, grade: str) -> Optional[Dict[str, Any]]:
-        if self.is_mongo:
-            doc = await self.db.users.find_one({"name": name, "grade": grade})
-            if doc:
-                doc["id"] = str(doc.get("_id", doc.get("id")))
-                return doc
-            return None
-        else:
-            for u in self._memory_data.get("users", []):
-                if u["name"] == name and u["grade"] == grade:
-                    return u
-            return None
+    async def find_user_by_name(self, first_name: str, last_name: str) -> Optional[Dict[str, Any]]:
+        self._require_mongo()
+        return await self.db.users.find_one(
+            {"first_name": first_name, "last_name": last_name},
+            collation=USER_NAME_COLLATION,
+        )
 
-    async def create_user(self, name: str, grade: str) -> Dict[str, Any]:
-        async with self._lock:
-            user_id = f"user-{uuid.uuid4().hex[:8]}"
-            user = {
-                "id": user_id,
-                "name": name,
-                "grade": grade,
-                "created_at": datetime.now().isoformat()
-            }
-            if self.is_mongo:
-                await self.db.users.insert_one(dict(user, _id=user_id))
-            else:
-                self._memory_data.setdefault("users", []).append(user)
-                self._save_file_data()
-            return user
+    async def create_user(self, first_name: str, last_name: str, grade: str) -> Dict[str, Any]:
+        self._require_mongo()
+        user = {
+            "first_name": first_name,
+            "last_name": last_name,
+            "grade": grade,
+            "created_at": datetime.now(timezone.utc),
+        }
+        try:
+            res = await self.db.users.insert_one(user)
+        except DuplicateKeyError:
+            return await self.find_user_by_name(first_name, last_name)
+        return dict(user, _id=res.inserted_id)
 
     # ---------------- Items ----------------
     async def get_items(
