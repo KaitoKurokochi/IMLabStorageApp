@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.models import UserResponse, UserCreate, UserLoginRequest
+from app.models import UserResponse, UserCreate, UserLoginRequest, ItemResponse, UsageLogResponse
 from app.database import db
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -32,7 +32,7 @@ async def get_user_detail(user_id: str):
 
     return {
         "user": UserResponse.model_validate(user),
-        "borrowed_items": borrowed_items,
-        "logs": logs
+        "borrowed_items": [ItemResponse.model_validate(item) for item in borrowed_items],
+        "logs": [UsageLogResponse.model_validate(log) for log in logs]
     }
 

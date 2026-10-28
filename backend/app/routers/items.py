@@ -6,9 +6,10 @@ import uuid
 import shutil
 from typing import Optional, List
 from PIL import Image, ImageOps
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Response
 from fastapi.responses import StreamingResponse
-from app.models import ItemResponse, ItemCreate, ItemBorrowRequest, UsageLogResponse
+from app.models import ItemResponse, ItemCreate, ItemBorrowRequest, ShelfResponse, UsageLogResponse
 from app.database import db
 from app.config import settings
 
@@ -39,7 +40,14 @@ async def create_item(item_in: ItemCreate):
     if not shelf:
         raise HTTPException(status_code=400, detail=f"棚 {item_in.shelf_id} が存在しません。")
 
-    created = await db.create_item(item_in.dict())
+    if item_in.image_id and not ObjectId.is_valid(item_in.image_id):
+        raise HTTPException(status_code=400, detail="画像IDが正しくありません。")
+
+    user = await db.get_user(item_in.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません。")
+
+    created = await db.create_item(item_in.model_dump(), user)
     return created
 
 @router.post("/upload-image")
@@ -78,7 +86,7 @@ async def upload_image(file: UploadFile = File(...)):
             content_type="image/webp",
             filename=file.filename or "image.webp"
         )
-        return {"url": f"/api/images/{image_id}"}
+        return {"image_id": image_id}
     except Exception as e:
         # Fallback to saving raw bytes
         image_id = await db.save_image(
@@ -86,13 +94,13 @@ async def upload_image(file: UploadFile = File(...)):
             content_type=file.content_type or "image/jpeg",
             filename=file.filename or "image"
         )
-        return {"url": f"/api/images/{image_id}"}
+        return {"image_id": image_id}
 
 @router.get("/export/json")
 async def export_json():
     """備品一覧をJSON形式でエクスポート"""
-    items = await db.get_items()
-    json_str = json.dumps(items, ensure_ascii=False, indent=2, default=str)
+    items = [ItemResponse.model_validate(i).model_dump(mode="json") for i in await db.get_items()]
+    json_str = json.dumps(items, ensure_ascii=False, indent=2)
     return Response(
         content=json_str,
         media_type="application/json",
@@ -102,7 +110,7 @@ async def export_json():
 @router.get("/export/csv")
 async def export_csv():
     """備品一覧をCSV形式でエクスポート"""
-    items = await db.get_items()
+    items = [ItemResponse.model_validate(i) for i in await db.get_items()]
     output = io.StringIO()
     # Write UTF-8 BOM so Excel opens it correctly with Japanese characters
     output.write('\ufeff')
@@ -112,18 +120,18 @@ async def export_csv():
         "現在の使用者", "最後に使用した人", "最終使用日時", "詳細情報", "画像URL"
     ])
     for item in items:
-        status_label = "使用中" if item.get("status") == "in_use" else "貸出可能"
+        status_label = "使用中" if item.status == "in_use" else "貸出可能"
         writer.writerow([
-            item.get("id", ""),
-            item.get("name", ""),
-            item.get("shelf_id", ""),
-            item.get("category", ""),
+            item.id,
+            item.name,
+            item.shelf_label or "",
+            item.category,
             status_label,
-            item.get("current_user_name") or "",
-            item.get("last_user_name") or "",
-            item.get("last_used_at") or "",
-            item.get("description", ""),
-            item.get("image_url") or ""
+            item.current_user_name or "",
+            item.last_user_name or "",
+            item.last_used_at.isoformat() if item.last_used_at else "",
+            item.description,
+            item.image_url or ""
         ])
 
     csv_data = output.getvalue().encode("utf-8-sig")
@@ -140,13 +148,13 @@ async def get_item_detail(item_id: str):
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    shelf = await db.get_shelf(item.get("shelf_id", ""))
+    shelf = await db.get_shelf(str(item["shelf_id"]))
     logs = await db.get_logs(item_id=item_id, limit=20)
 
     return {
-        "item": item,
-        "shelf": shelf,
-        "logs": logs
+        "item": ItemResponse.model_validate(item),
+        "shelf": ShelfResponse.model_validate(shelf) if shelf else None,
+        "logs": [UsageLogResponse.model_validate(log) for log in logs]
     }
 
 @router.post("/{item_id}/borrow", response_model=ItemResponse)
@@ -166,7 +174,7 @@ async def borrow_item(item_id: str, req: ItemBorrowRequest):
     if not user:
         raise HTTPException(status_code=404, detail="ユーザーが見つかりません。")
 
-    updated = await db.borrow_item(item_id, user_id=user["id"], user_name=user["name"])
+    updated = await db.borrow_item(item_id, user)
     return updated
 
 @router.post("/{item_id}/return", response_model=ItemResponse)
@@ -176,33 +184,26 @@ async def return_item(item_id: str, req: Optional[ItemBorrowRequest] = None):
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    user_id = None
-    user_name = None
-    if req and req.user_id:
-        user = await db.get_user(req.user_id)
-        if user:
-            user_id = user["id"]
-            user_name = user["name"]
+    # ユーザーが分からなければ None (使用中のユーザーが返却したことになる)
+    user = await db.get_user(req.user_id) if req and req.user_id else None
 
-    updated = await db.return_item(item_id, user_id=user_id, user_name=user_name)
+    updated = await db.return_item(item_id, user)
     return updated
 
 @router.delete("/{item_id}")
-async def delete_item(item_id: str):
-    """備品を削除"""
+async def delete_item(item_id: str, user_id: str = Query(..., description="削除するユーザーのID")):
+    """備品を削除 (論理削除。削除の履歴をログに残す)"""
     item = await db.get_item(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    deleted = await db.delete_item(item_id)
+    user = await db.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません。")
+
+    deleted = await db.delete_item(item_id, user)
     if not deleted:
         raise HTTPException(status_code=500, detail="備品の削除に失敗しました。")
     return {"status": "ok", "deleted_id": item_id}
-
-@router.post("/admin/clear-demo-data")
-async def clear_demo_data():
-    """初期ダミーデータ (備品・ユーザー・ログ) を一括削除"""
-    res = await db.clear_demo_data()
-    return {"status": "ok", "deleted": res}
 
 
