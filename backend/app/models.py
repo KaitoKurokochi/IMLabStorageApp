@@ -1,6 +1,13 @@
 from datetime import datetime
-from typing import Optional, Literal
-from pydantic import BaseModel, Field
+from typing import Annotated, Optional, Literal
+from pydantic import AliasChoices, BaseModel, BeforeValidator, ConfigDict, Field, StringConstraints
+
+# ---------------- Common ----------------
+# MongoDB の ObjectId を API では文字列として扱う
+PyObjectId = Annotated[str, BeforeValidator(str)]
+
+# ---------------- Users ----------------
+NameStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 GradeType = Literal[
     "B1", "B2", "B3", "B4",
@@ -9,26 +16,26 @@ GradeType = Literal[
     "教員", "研究員", "OB/OG", "その他"
 ]
 
-ItemStatus = Literal["available", "in_use"]
-
 class UserBase(BaseModel):
-    name: str = Field(..., min_length=1, description="ユーザー名")
+    first_name: NameStr = Field(..., description="名(英語表記)")
+    last_name: NameStr = Field(..., description="姓(英語表記)")
     grade: GradeType = Field(..., description="学年/身分")
 
 class UserCreate(UserBase):
     pass
 
 class UserResponse(UserBase):
-    id: str
+    # Mongo のドキュメントは `_id`、レスポンスは `id` で出す
+    id: PyObjectId = Field(validation_alias=AliasChoices("_id", "id"))
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserLoginRequest(BaseModel):
-    name: str
-    grade: GradeType
+    first_name: NameStr
+    last_name: NameStr
 
+# ---------------- Shelves ----------------
 class ShelfResponse(BaseModel):
     id: str  # "A-1", "A-2", etc.
     row: str  # "A", "B", "C"
@@ -37,6 +44,9 @@ class ShelfResponse(BaseModel):
     description: Optional[str] = ""
     item_count: int = 0
     available_count: int = 0
+
+# ---------------- Items ----------------
+ItemStatus = Literal["available", "in_use"]
 
 class ItemBase(BaseModel):
     name: str = Field(..., min_length=1, description="備品名")
@@ -68,6 +78,7 @@ class ItemResponse(ItemBase):
 class ItemBorrowRequest(BaseModel):
     user_id: str
 
+# ---------------- Usage Logs ----------------
 class UsageLogResponse(BaseModel):
     id: str
     item_id: str
