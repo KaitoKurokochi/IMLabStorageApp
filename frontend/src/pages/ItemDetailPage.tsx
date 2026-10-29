@@ -16,8 +16,15 @@ import {
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Layout } from '../components/Layout';
-import { api, Item, Shelf, UsageLog, User as UserType, getFullImageUrl } from '../api/client';
+import { api, Item, Shelf, UsageLog, getFullImageUrl, LOG_ACTION_BADGE_CLASS } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+
+const LOG_ACTION_LABEL: Record<UsageLog['action'], string> = {
+  register: '登録',
+  delete: '削除',
+  borrow: '借用開始',
+  return: '返却完了',
+};
 
 export const ItemDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -32,10 +39,6 @@ export const ItemDetailPage: React.FC = () => {
   const [showQR, setShowQR] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  // Quick user select modal for borrowing when not logged in
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-  const [usersList, setUsersList] = useState<UserType[]>([]);
 
   useEffect(() => {
     if (id) {
@@ -57,17 +60,9 @@ export const ItemDetailPage: React.FC = () => {
     }
   };
 
-  const handleBorrow = async (userIdToUse?: string) => {
-    const targetUserId = userIdToUse || currentUser?.id;
-    if (!targetUserId) {
-      // Load users list and show quick picker modal
-      try {
-        const users = await api.getUsers();
-        setUsersList(users);
-        setShowLoginPrompt(true);
-      } catch (e) {
-        navigate('/login');
-      }
+  const handleBorrow = async () => {
+    if (!currentUser) {
+      navigate('/login');
       return;
     }
 
@@ -76,9 +71,8 @@ export const ItemDetailPage: React.FC = () => {
     try {
       setProcessing(true);
       setActionError(null);
-      await api.borrowItem(item.id, targetUserId);
+      await api.borrowItem(item.id, currentUser.id);
       setActionSuccess('備品を使用中に設定しました。');
-      setShowLoginPrompt(false);
       setTimeout(() => setActionSuccess(null), 3500);
       loadItemData(item.id);
     } catch (err: any) {
@@ -107,13 +101,17 @@ export const ItemDetailPage: React.FC = () => {
 
   const handleDelete = async () => {
     if (!item) return;
+    if (!currentUser) {
+      setActionError('備品を削除するにはログインしてください。');
+      return;
+    }
     if (!window.confirm(`備品「${item.name}」を削除してもよろしいですか？`)) {
       return;
     }
 
     try {
       setProcessing(true);
-      await api.deleteItem(item.id);
+      await api.deleteItem(item.id, currentUser.id);
       navigate('/items');
     } catch (err: any) {
       setActionError(err.message || '備品の削除に失敗しました。');
@@ -275,7 +273,7 @@ export const ItemDetailPage: React.FC = () => {
                   to={`/shelves/${item.shelf_id}`}
                   className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1"
                 >
-                  <span>棚 {item.shelf_id}</span>
+                  <span>棚 {item.shelf_label}</span>
                   <span className="text-xs">→</span>
                 </Link>
               </div>
@@ -343,7 +341,7 @@ export const ItemDetailPage: React.FC = () => {
 
           {!currentUser && isAvailable && (
             <p className="text-[11px] text-center text-slate-400">
-              ※ 未ログイン状態で「使用」を押すと使用者を選択できます
+              ※ 「使用」を押すにはログインが必要です
             </p>
           )}
         </div>
@@ -366,13 +364,9 @@ export const ItemDetailPage: React.FC = () => {
                     </p>
                   </div>
                   <span
-                    className={`px-2 py-0.5 rounded font-bold ${
-                      log.action === 'borrow'
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    }`}
+                    className={`px-2 py-0.5 rounded font-bold ${LOG_ACTION_BADGE_CLASS[log.action]}`}
                   >
-                    {log.action === 'borrow' ? '借用開始' : '返却完了'}
+                    {LOG_ACTION_LABEL[log.action]}
                   </span>
                 </div>
               ))}
@@ -380,53 +374,6 @@ export const ItemDetailPage: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* User Selection Modal when borrowing without logged in user */}
-      {showLoginPrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl space-y-4">
-            <div className="text-center space-y-1">
-              <h3 className="text-base font-bold text-slate-800">使用者を選択</h3>
-              <p className="text-xs text-slate-500">
-                この備品を使用する人を選択してください
-              </p>
-            </div>
-
-            <div className="max-h-60 overflow-y-auto space-y-1.5 border border-slate-100 rounded-xl p-2 bg-slate-50">
-              {usersList.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => handleBorrow(u.id)}
-                  className="w-full text-left p-2.5 bg-white hover:bg-indigo-50 hover:border-indigo-300 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 flex items-center justify-between transition"
-                >
-                  <span className="font-semibold">{u.name}</span>
-                  <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                    {u.grade}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="pt-2 flex gap-2">
-              <button
-                onClick={() => setShowLoginPrompt(false)}
-                className="flex-1 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={() => {
-                  setShowLoginPrompt(false);
-                  navigate('/users/new');
-                }}
-                className="flex-1 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition"
-              >
-                新規ユーザー登録
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </Layout>
   );
 };

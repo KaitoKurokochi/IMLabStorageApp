@@ -48,7 +48,7 @@ app.include_router(images.router, prefix="/api")
 async def health_check():
     return {
         "status": "ok",
-        "storage": "mongodb" if db.is_mongo else "json_storage",
+        "storage": "mongodb",
         "app": settings.PROJECT_NAME
     }
 

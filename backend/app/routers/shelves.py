@@ -19,7 +19,7 @@ async def get_shelf_detail(shelf_id: str):
     
     items = await db.get_items(shelf_id=shelf_id)
     return {
-        "shelf": shelf,
-        "items": items
+        "shelf": ShelfResponse.model_validate(shelf),
+        "items": [ItemResponse.model_validate(item) for item in items]
     }
 

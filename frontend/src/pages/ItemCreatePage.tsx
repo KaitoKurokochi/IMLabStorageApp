@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UploadCloud, Image as ImageIcon, Loader2, ArrowLeft, Check } from 'lucide-react';
 import { Layout } from '../components/Layout';
+import { useAuth } from '../context/AuthContext';
 import { api, Shelf } from '../api/client';
 
 const CATEGORIES = [
@@ -17,15 +18,15 @@ const CATEGORIES = [
 
 export const ItemCreatePage: React.FC = () => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [searchParams] = useSearchParams();
-  const queryShelfId = searchParams.get('shelf_id') || searchParams.get('shelf') || 'A-1';
+  const queryShelfId = searchParams.get('shelf_id') || searchParams.get('shelf') || '';
 
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [name, setName] = useState('');
   const [shelfId, setShelfId] = useState(queryShelfId);
   const [category, setCategory] = useState('VR');
   const [description, setDescription] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,7 +40,13 @@ export const ItemCreatePage: React.FC = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    api.getShelves().then(setShelves).catch(console.error);
+    api.getShelves()
+      .then((data) => {
+        setShelves(data);
+        // 棚の指定がなければ、先頭の棚を選んでおく
+        setShelfId((current) => current || data[0]?.id || '');
+      })
+      .catch(console.error);
   }, []);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,16 +67,24 @@ export const ItemCreatePage: React.FC = () => {
       setErrorMessage('備品名を入力してください。');
       return;
     }
+    if (!currentUser) {
+      setErrorMessage('備品を登録するにはログインしてください。');
+      return;
+    }
+    if (!shelfId) {
+      setErrorMessage('棚の位置を選択してください。');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
       setErrorMessage(null);
 
-      let finalImageUrl = imageUrl;
+      let imageId: string | undefined;
       // If a file was selected, upload it first
       if (imageFile) {
         const uploadRes = await api.uploadImage(imageFile);
-        finalImageUrl = uploadRes.url;
+        imageId = uploadRes.image_id;
       }
 
       const created = await api.createItem({
@@ -77,7 +92,8 @@ export const ItemCreatePage: React.FC = () => {
         shelf_id: shelfId,
         category,
         description: description.trim(),
-        image_url: finalImageUrl || undefined,
+        image_id: imageId,
+        user_id: currentUser.id,
       });
 
       // Redirect to item detail page
@@ -139,42 +155,11 @@ export const ItemCreatePage: React.FC = () => {
                 {shelves.length > 0 ? (
                   shelves.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} ({s.description})
+                      棚 {s.label} ({s.description})
                     </option>
                   ))
                 ) : (
-                  <>
-                    <option value="A-1">棚 A-1</option>
-                    <option value="A-2">棚 A-2</option>
-                    <option value="A-3">棚 A-3</option>
-                    <option value="A-4">棚 A-4</option>
-                    <option value="A-5">棚 A-5</option>
-                    <option value="A-6-1">棚 A-6-1</option>
-                    <option value="A-6-2">棚 A-6-2</option>
-                    <option value="B-1">棚 B-1</option>
-                    <option value="B-2">棚 B-2</option>
-                    <option value="B-3-1">棚 B-3-1</option>
-                    <option value="B-3-2">棚 B-3-2</option>
-                    <option value="B-3-3">棚 B-3-3</option>
-                    <option value="B-3-4">棚 B-3-4</option>
-                    <option value="B-4-1">棚 B-4-1</option>
-                    <option value="B-4-2">棚 B-4-2</option>
-                    <option value="B-4-3">棚 B-4-3</option>
-                    <option value="B-4-4">棚 B-4-4</option>
-                    <option value="B-5">棚 B-5</option>
-                    <option value="B-6">棚 B-6</option>
-                    <option value="C-1">棚 C-1</option>
-                    <option value="C-2">棚 C-2</option>
-                    <option value="C-3">棚 C-3</option>
-                    <option value="C-4">棚 C-4</option>
-                    <option value="C-5">棚 C-5</option>
-                    <option value="C-6-1">棚 C-6-1</option>
-                    <option value="C-6-2">棚 C-6-2</option>
-                    <option value="C-6-3">棚 C-6-3</option>
-                    <option value="C-6-4">棚 C-6-4</option>
-                    <option value="C-6-5">棚 C-6-5</option>
-                    <option value="C-6-6">棚 C-6-6</option>
-                  </>
+                  <option value="">棚を読み込み中...</option>
                 )}
               </select>
             </div>

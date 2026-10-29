@@ -55,7 +55,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, showShelf = true }) =>
             {showShelf && (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded font-medium">
                 <MapPin className="w-3 h-3 text-slate-500" />
-                {item.shelf_id}
+                {item.shelf_label}
               </span>
             )}
             {item.category && (

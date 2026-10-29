@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, QrCode, X, User as UserIcon, PlusCircle, List, LogIn, LogOut, Home, Trash2 } from 'lucide-react';
+import { Menu, QrCode, X, User as UserIcon, PlusCircle, List, LogIn, LogOut, Home } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../api/client';
+import { getUserDisplayName } from '../api/client';
 import { QRScannerModal } from './QRScannerModal';
 
 export const Header: React.FC = () => {
@@ -16,20 +16,6 @@ export const Header: React.FC = () => {
     logout();
     setIsMenuOpen(false);
     navigate('/');
-  };
-
-  const handleClearDemoData = async () => {
-    if (!window.confirm('初期サンプル備品（6点）とダミーユーザー、利用履歴を一括削除しますか？\n（※棚の区画A-1〜C-3はそのまま保持されます）')) {
-      return;
-    }
-    try {
-      const res = await api.clearDemoData();
-      alert(`ダミーデータを削除しました（備品: ${res.deleted.deleted_items}件, ユーザー: ${res.deleted.deleted_users}件）`);
-      setIsMenuOpen(false);
-      window.location.href = '/';
-    } catch (err: any) {
-      alert(err.message || 'ダミーデータの削除に失敗しました');
-    }
   };
 
   return (
@@ -93,10 +79,10 @@ export const Header: React.FC = () => {
               {currentUser ? (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm">
-                    {currentUser.name.slice(0, 1)}
+                    {currentUser.first_name.slice(0, 1)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{currentUser.name}</p>
+                    <p className="text-sm font-semibold text-slate-800 truncate">{getUserDisplayName(currentUser)}</p>
                     <span className="inline-block px-1.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 rounded">
                       {currentUser.grade}
                     </span>
@@ -191,14 +177,6 @@ export const Header: React.FC = () => {
                   <span>ログアウト</span>
                 </button>
               )}
-              <button
-                onClick={handleClearDemoData}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                title="サンプルの備品・ユーザーデータを一括消去"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>初期ダミーデータを消去</span>
-              </button>
             </div>
           </div>
         </div>

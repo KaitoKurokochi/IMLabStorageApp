@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import { X, Camera, Image, ArrowRight, AlertCircle } from 'lucide-react';
+import { api } from '../api/client';
 
 interface QRScannerModalProps {
   isOpen: boolean;
@@ -16,7 +17,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({ isOpen, onClose 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerId = 'qr-reader-container';
 
-  const handleDetected = (decodedText: string) => {
+  const handleDetected = async (decodedText: string) => {
     // Process text
     stopScanner();
     onClose();
@@ -37,14 +38,14 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({ isOpen, onClose 
       return;
     }
 
-    // If it looks like shelf ID e.g. "A-1" or "shelves/A-1"
+    // 棚の呼び名 (label) e.g. "A-1" の手動入力は、棚を探して id で移動する
     const clean = decodedText.trim();
-    if (/^[A-C]-[1-3]$/i.test(clean)) {
-      navigate(`/shelves/${clean.toUpperCase()}`);
-    } else if (clean.startsWith('item-')) {
-      navigate(`/items/${clean}`);
+    if (/^[A-C]-\d(-\d)?$/i.test(clean)) {
+      const shelves = await api.getShelves().catch(() => []);
+      const shelf = shelves.find((s) => s.label.toLowerCase() === clean.toLowerCase());
+      navigate(`/shelves/${shelf ? shelf.id : clean}`);
     } else {
-      // fallback to search or direct path
+      // 備品ID として開く
       navigate(`/items/${clean}`);
     }
   };

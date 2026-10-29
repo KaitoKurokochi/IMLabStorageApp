@@ -83,7 +83,7 @@ export const ShelfDetailPage: React.FC = () => {
               <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <span>棚の詳細</span>
                 <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-extrabold">
-                  {shelf.name}
+                  棚 {shelf.label}
                 </span>
               </h1>
               {shelf.description && (
@@ -109,7 +109,7 @@ export const ShelfDetailPage: React.FC = () => {
               <QRCodeSVG value={shelfUrl} size={160} level="M" />
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-800">棚 {shelf.id} 貼付用QRコード</p>
+              <p className="text-sm font-bold text-slate-800">棚 {shelf.label} 貼付用QRコード</p>
               <p className="text-xs text-slate-400 mt-0.5 break-all">{shelfUrl}</p>
             </div>
             <p className="text-xs text-slate-500">

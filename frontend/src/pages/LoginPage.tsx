@@ -1,33 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogIn, UserPlus, Loader2, User } from 'lucide-react';
+import { LogIn, UserPlus, Loader2 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
-import { api, User as UserType } from '../api/client';
-
-const GRADES = [
-  'B1', 'B2', 'B3', 'B4',
-  'M1', 'M2',
-  'D1', 'D2', 'D3',
-  '教員', '研究員', 'OB/OG', 'その他'
-];
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [name, setName] = useState('');
-  const [grade, setGrade] = useState('M1');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [registeredUsers, setRegisteredUsers] = useState<UserType[]>([]);
-
-  useEffect(() => {
-    api.getUsers().then(setRegisteredUsers).catch(console.error);
-  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
+    if (!firstName.trim() || !lastName.trim()) {
       setErrorMessage('名前を入力してください。');
       return;
     }
@@ -35,18 +22,13 @@ export const LoginPage: React.FC = () => {
     try {
       setIsSubmitting(true);
       setErrorMessage(null);
-      const user = await login(name.trim(), grade);
+      const user = await login(firstName.trim(), lastName.trim());
       navigate(`/users/${user.id}`);
     } catch (err: any) {
-      setErrorMessage(err.message || 'ログインに失敗しました。名前と学年を確認してください。');
+      setErrorMessage(err.message || 'ログインに失敗しました。名前を確認してください。');
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const selectExistingUser = (u: UserType) => {
-    setName(u.name);
-    setGrade(u.grade);
   };
 
   return (
@@ -55,7 +37,7 @@ export const LoginPage: React.FC = () => {
         <div className="text-center space-y-1">
           <h1 className="text-2xl font-bold text-slate-800">ログイン</h1>
           <p className="text-xs text-slate-500">
-            登録済みの名前と学年を入力してください
+            登録済みの名前を英語表記で入力してください
           </p>
         </div>
 
@@ -66,35 +48,33 @@ export const LoginPage: React.FC = () => {
         )}
 
         <form onSubmit={handleLogin} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              名前
-            </label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例: 山田 太郎"
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              学年
-            </label>
-            <select
-              value={grade}
-              onChange={(e) => setGrade(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition font-medium"
-            >
-              {GRADES.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                名 (First name)
+              </label>
+              <input
+                type="text"
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="例: Taro"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                姓 (Last name)
+              </label>
+              <input
+                type="text"
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="例: Yamada"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              />
+            </div>
           </div>
 
           <div className="pt-2">
@@ -127,27 +107,6 @@ export const LoginPage: React.FC = () => {
             </Link>
           </div>
         </form>
-
-        {/* Existing Users Quick Tap (Helpful for quick lab use) */}
-        {registeredUsers.length > 0 && (
-          <div className="bg-slate-100/80 rounded-2xl p-4 border border-slate-200">
-            <p className="text-xs font-semibold text-slate-600 mb-2.5">登録済みユーザーから素早く選択:</p>
-            <div className="flex flex-wrap gap-1.5">
-              {registeredUsers.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => selectExistingUser(u)}
-                  className="px-2.5 py-1 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-lg text-xs font-medium text-slate-700 transition flex items-center gap-1"
-                >
-                  <User className="w-3 h-3 text-indigo-500" />
-                  <span>{u.name}</span>
-                  <span className="text-[10px] text-slate-400">({u.grade})</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </Layout>
   );

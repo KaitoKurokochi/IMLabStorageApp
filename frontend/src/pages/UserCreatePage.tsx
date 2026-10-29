@@ -14,14 +14,15 @@ const GRADES = [
 export const UserCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [grade, setGrade] = useState('B4');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
+    if (!firstName.trim() || !lastName.trim()) {
       setErrorMessage('名前を入力してください。');
       return;
     }
@@ -29,7 +30,7 @@ export const UserCreatePage: React.FC = () => {
     try {
       setIsSubmitting(true);
       setErrorMessage(null);
-      const user = await register(name.trim(), grade);
+      const user = await register(firstName.trim(), lastName.trim(), grade);
       navigate(`/users/${user.id}`);
     } catch (err: any) {
       setErrorMessage(err.message || 'ユーザー登録に失敗しました。');
@@ -59,19 +60,35 @@ export const UserCreatePage: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              名前 <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例: 佐藤 花子"
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                名 (First name) <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="例: Hanako"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                姓 (Last name) <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="例: Sato"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              />
+            </div>
           </div>
+          <p className="-mt-2 text-[11px] text-slate-400">名前は英語表記で入力してください</p>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">

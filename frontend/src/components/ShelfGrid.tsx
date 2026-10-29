@@ -19,22 +19,23 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
 }) => {
   const navigate = useNavigate();
 
-  const getShelf = (shelfId: string): Shelf | undefined => {
-    return shelves.find((s) => s.id === shelfId);
+  const getShelf = (label: string): Shelf | undefined => {
+    return shelves.find((s) => s.label === label);
   };
 
-  const handleClick = (shelfId: string) => {
+  const handleClick = (shelf: Shelf) => {
     if (!interactive) return;
     if (onSelectShelf) {
-      onSelectShelf(shelfId);
+      onSelectShelf(shelf.id);
     } else {
-      navigate(`/shelves/${shelfId}`);
+      navigate(`/shelves/${shelf.id}`);
     }
   };
 
-  const renderShelfButton = (shelfId: string, variant: ShelfVariant) => {
-    const shelf = getShelf(shelfId);
-    const isHighlighted = highlightShelfId === shelfId;
+  // label: 配置図上の区画 (A-1 など)。棚のデータは label で探し、移動や選択は id で行う
+  const renderShelfButton = (label: string, variant: ShelfVariant) => {
+    const shelf = getShelf(label);
+    const isHighlighted = !!shelf && highlightShelfId === shelf.id;
     const itemCount = shelf?.item_count ?? 0;
     const availableCount = shelf?.available_count ?? 0;
 
@@ -62,11 +63,11 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
 
     return (
       <button
-        key={shelfId}
+        key={label}
         type="button"
-        onClick={() => handleClick(shelfId)}
-        disabled={!interactive}
-        title={`${shelfId}${shelf?.name ? `: ${shelf.name}` : ''} (${itemCount}点)`}
+        onClick={() => shelf && handleClick(shelf)}
+        disabled={!interactive || !shelf}
+        title={`${label}${shelf?.description ? `: ${shelf.description}` : ''} (${itemCount}点)`}
         className={`w-full h-full relative flex flex-col items-center justify-center rounded-xl transition-all duration-150 ${paddingClass} ${
           isHighlighted
             ? 'bg-indigo-600 text-white ring-2 sm:ring-4 ring-indigo-300 shadow-md scale-[1.02] font-bold z-10'
@@ -80,7 +81,7 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
             isHighlighted ? 'text-white' : 'text-slate-800'
           }`}
         >
-          {isHighlighted ? `[ ${shelfId} ]` : shelfId}
+          {isHighlighted ? `[ ${label} ]` : label}
         </span>
 
         <div className="mt-0.5 flex items-center justify-center max-w-full">

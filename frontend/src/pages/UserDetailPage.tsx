@@ -2,9 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { User as UserIcon, Package, RotateCcw, Clock, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 import { Layout } from '../components/Layout';
-import { api, User, Item, UsageLog } from '../api/client';
+import { api, getUserDisplayName, LOG_ACTION_BADGE_CLASS, User, Item, UsageLog } from '../api/client';
 import { ItemCard } from '../components/ItemCard';
 import { useAuth } from '../context/AuthContext';
+
+const LOG_ACTION_LABEL: Record<UsageLog['action'], string> = {
+  register: '登録',
+  delete: '削除',
+  borrow: '借用',
+  return: '返却',
+};
 
 export const UserDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -100,11 +107,11 @@ export const UserDetailPage: React.FC = () => {
         {/* User Profile Card */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xl flex items-center justify-center flex-shrink-0 border-2 border-indigo-200">
-            {user.name.slice(0, 1)}
+            {user.first_name.slice(0, 1)}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-slate-900 truncate">{user.name}</h2>
+              <h2 className="text-lg font-bold text-slate-900 truncate">{getUserDisplayName(user)}</h2>
               {isSelf && (
                 <span className="px-2 py-0.5 text-[10px] font-bold bg-indigo-600 text-white rounded-full">
                   あなた
@@ -166,13 +173,9 @@ export const UserDetailPage: React.FC = () => {
                     </p>
                   </div>
                   <span
-                    className={`px-2 py-0.5 rounded font-bold ${
-                      log.action === 'borrow'
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    }`}
+                    className={`px-2 py-0.5 rounded font-bold ${LOG_ACTION_BADGE_CLASS[log.action]}`}
                   >
-                    {log.action === 'borrow' ? '借用' : '返却'}
+                    {LOG_ACTION_LABEL[log.action]}
                   </span>
                 </div>
               ))}
