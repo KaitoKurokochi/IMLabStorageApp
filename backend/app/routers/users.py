@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.models import UserResponse, UserCreate, UserLoginRequest, ItemResponse, UsageLogResponse
+from app.models import GradeType, UserResponse, UserSuggestion, UserCreate, UserLoginRequest, ItemResponse, UsageLogResponse
 from app.database import db
 from app.auth import verify_auth
 
@@ -9,6 +9,11 @@ router = APIRouter(prefix="/users", tags=["users"])
 async def create_user(user_in: UserCreate):
     """新規ユーザー登録"""
     return await db.create_user(user_in.first_name, user_in.last_name, user_in.grade)
+
+@router.get("", response_model=list[UserSuggestion])
+async def list_users(grade: GradeType):
+    """学年で絞ったユーザー一覧 (ログイン画面のサジェスト用。名前と ID のみ)"""
+    return await db.list_users_by_grade(grade)
 
 @router.post("/login", response_model=UserResponse)
 async def login_user(login_in: UserLoginRequest):
