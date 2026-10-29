@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, QrCode, X, User as UserIcon, PlusCircle, List, LogIn, LogOut, Home } from 'lucide-react';
+import { Menu, QrCode, X, User as UserIcon, PlusCircle, List, LogIn, LogOut, Home, KeyRound, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { usePassphrase } from '../context/PassphraseContext';
 import { getUserDisplayName } from '../api/client';
 import { QRScannerModal } from './QRScannerModal';
 
@@ -9,6 +10,7 @@ export const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const { currentUser, logout } = useAuth();
+  const { isAuthorized, revokeAuth, openModal } = usePassphrase();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -165,6 +167,48 @@ export const Header: React.FC = () => {
                 <span>備品登録</span>
               </Link>
             </nav>
+
+            {/* Passphrase Authorization Status */}
+            <div className="p-3 border-t border-slate-100">
+              <div className="p-2.5 bg-slate-50 rounded-xl text-xs space-y-2 border border-slate-200/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 font-bold">研究室の合言葉</span>
+                  {isAuthorized ? (
+                    <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-[11px] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>認証済み</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-[11px] bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span>未認証</span>
+                    </span>
+                  )}
+                </div>
+
+                {isAuthorized ? (
+                  <button
+                    onClick={() => {
+                      revokeAuth();
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full text-center text-[11px] text-slate-400 hover:text-rose-600 transition underline"
+                  >
+                    合言葉の認証を解除
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      openModal();
+                    }}
+                    className="w-full py-1.5 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition text-center shadow-sm"
+                  >
+                    合言葉を入力する
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* Bottom Actions */}
             <div className="p-3 border-t border-slate-100 space-y-1">

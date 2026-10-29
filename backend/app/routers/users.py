@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.models import UserResponse, UserCreate, UserLoginRequest, ItemResponse, UsageLogResponse
 from app.database import db
+from app.auth import verify_auth
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-@router.post("", response_model=UserResponse)
+@router.post("", response_model=UserResponse, dependencies=[Depends(verify_auth)])
 async def create_user(user_in: UserCreate):
     """新規ユーザー登録"""
     return await db.create_user(user_in.first_name, user_in.last_name, user_in.grade)

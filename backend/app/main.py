@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.database import db
-from app.routers import shelves, items, users, logs, images
+from app.routers import shelves, items, users, logs, images, auth
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +38,7 @@ app.add_middleware(
 app.mount("/static/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # Include Routers
+app.include_router(auth.router, prefix="/api")
 app.include_router(shelves.router, prefix="/api")
 app.include_router(items.router, prefix="/api")
 app.include_router(users.router, prefix="/api")

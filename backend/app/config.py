@@ -35,6 +35,11 @@ class Settings(BaseModel):
     _raw_upload_dir: str = os.getenv("UPLOAD_DIR", "static/uploads")
     UPLOAD_DIR: str = os.path.abspath(os.path.join(current_dir, _raw_upload_dir)) if not os.path.isabs(_raw_upload_dir) else _raw_upload_dir
 
+    # Security / Passphrase
+    APP_PASSPHRASE: str = os.getenv("APP_PASSPHRASE", "imlab-sugimoto")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "imlab-secret-key-change-in-production")
+    PASSPHRASE_TOKEN_EXPIRE_DAYS: int = int(os.getenv("PASSPHRASE_TOKEN_EXPIRE_DAYS", "365"))
+
     # CORS
     CORS_ORIGINS: List[str] = parse_cors_origins(
         os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,*")

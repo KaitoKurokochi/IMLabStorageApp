@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UploadCloud, Image as ImageIcon, Loader2, ArrowLeft, Check } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
+import { usePassphrase } from '../context/PassphraseContext';
 import { api, Shelf } from '../api/client';
 
 const CATEGORIES = [
@@ -19,6 +20,7 @@ const CATEGORIES = [
 export const ItemCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { requireAuthorization } = usePassphrase();
   const [searchParams] = useSearchParams();
   const queryShelfId = searchParams.get('shelf_id') || searchParams.get('shelf') || '';
 
@@ -76,33 +78,35 @@ export const ItemCreatePage: React.FC = () => {
       return;
     }
 
-    try {
-      setIsSubmitting(true);
-      setErrorMessage(null);
+    await requireAuthorization(async () => {
+      try {
+        setIsSubmitting(true);
+        setErrorMessage(null);
 
-      let imageId: string | undefined;
-      // If a file was selected, upload it first
-      if (imageFile) {
-        const uploadRes = await api.uploadImage(imageFile);
-        imageId = uploadRes.image_id;
+        let imageId: string | undefined;
+        // If a file was selected, upload it first
+        if (imageFile) {
+          const uploadRes = await api.uploadImage(imageFile);
+          imageId = uploadRes.image_id;
+        }
+
+        const created = await api.createItem({
+          name: name.trim(),
+          shelf_id: shelfId,
+          category,
+          description: description.trim(),
+          image_id: imageId,
+          user_id: currentUser.id,
+        });
+
+        // Redirect to item detail page
+        navigate(`/items/${created.id}`);
+      } catch (err: any) {
+        setErrorMessage(err.message || '備品の登録に失敗しました。');
+      } finally {
+        setIsSubmitting(false);
       }
-
-      const created = await api.createItem({
-        name: name.trim(),
-        shelf_id: shelfId,
-        category,
-        description: description.trim(),
-        image_id: imageId,
-        user_id: currentUser.id,
-      });
-
-      // Redirect to item detail page
-      navigate(`/items/${created.id}`);
-    } catch (err: any) {
-      setErrorMessage(err.message || '備品の登録に失敗しました。');
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   return (

@@ -18,6 +18,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Layout } from '../components/Layout';
 import { api, Item, Shelf, UsageLog, getFullImageUrl, LOG_ACTION_BADGE_CLASS } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { usePassphrase } from '../context/PassphraseContext';
 
 const LOG_ACTION_LABEL: Record<UsageLog['action'], string> = {
   register: '登録',
@@ -30,6 +31,7 @@ export const ItemDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { requireAuthorization } = usePassphrase();
 
   const [item, setItem] = useState<Item | null>(null);
   const [shelf, setShelf] = useState<Shelf | null>(null);
@@ -68,35 +70,39 @@ export const ItemDetailPage: React.FC = () => {
 
     if (!item) return;
 
-    try {
-      setProcessing(true);
-      setActionError(null);
-      await api.borrowItem(item.id, currentUser.id);
-      setActionSuccess('備品を使用中に設定しました。');
-      setTimeout(() => setActionSuccess(null), 3500);
-      loadItemData(item.id);
-    } catch (err: any) {
-      setActionError(err.message || '借用処理に失敗しました。');
-    } finally {
-      setProcessing(false);
-    }
+    await requireAuthorization(async () => {
+      try {
+        setProcessing(true);
+        setActionError(null);
+        await api.borrowItem(item.id, currentUser.id);
+        setActionSuccess('備品を使用中に設定しました。');
+        setTimeout(() => setActionSuccess(null), 3500);
+        loadItemData(item.id);
+      } catch (err: any) {
+        setActionError(err.message || '借用処理に失敗しました。');
+      } finally {
+        setProcessing(false);
+      }
+    });
   };
 
   const handleReturn = async () => {
     if (!item) return;
 
-    try {
-      setProcessing(true);
-      setActionError(null);
-      await api.returnItem(item.id, currentUser?.id);
-      setActionSuccess('備品を返却しました。貸出可能になりました。');
-      setTimeout(() => setActionSuccess(null), 3500);
-      loadItemData(item.id);
-    } catch (err: any) {
-      setActionError(err.message || '返却処理に失敗しました。');
-    } finally {
-      setProcessing(false);
-    }
+    await requireAuthorization(async () => {
+      try {
+        setProcessing(true);
+        setActionError(null);
+        await api.returnItem(item.id, currentUser?.id);
+        setActionSuccess('備品を返却しました。貸出可能になりました。');
+        setTimeout(() => setActionSuccess(null), 3500);
+        loadItemData(item.id);
+      } catch (err: any) {
+        setActionError(err.message || '返却処理に失敗しました。');
+      } finally {
+        setProcessing(false);
+      }
+    });
   };
 
   const handleDelete = async () => {
@@ -109,14 +115,16 @@ export const ItemDetailPage: React.FC = () => {
       return;
     }
 
-    try {
-      setProcessing(true);
-      await api.deleteItem(item.id, currentUser.id);
-      navigate('/items');
-    } catch (err: any) {
-      setActionError(err.message || '備品の削除に失敗しました。');
-      setProcessing(false);
-    }
+    await requireAuthorization(async () => {
+      try {
+        setProcessing(true);
+        await api.deleteItem(item.id, currentUser.id);
+        navigate('/items');
+      } catch (err: any) {
+        setActionError(err.message || '備品の削除に失敗しました。');
+        setProcessing(false);
+      }
+    });
   };
 
   if (loading) {

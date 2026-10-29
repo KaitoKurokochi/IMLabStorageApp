@@ -38,6 +38,9 @@
   - `DATABASE_NAME`: 使用データベース名 (`imlab_storage`)
   - `CORS_ORIGINS`: 許可するオリジン (カンマ区切りまたは `*`)
   - `UPLOAD_DIR`: アップロード画像保存先ディレクトリ
+  - `APP_PASSPHRASE`: 研究室の合言葉（デフォルト `imlab-sugimoto`）。DB変更操作（登録・借用・返却・削除）時に必要
+  - `SECRET_KEY`: トークン署名用シークレットキー
+  - `PASSPHRASE_TOKEN_EXPIRE_DAYS`: トークンの有効日数（デフォルト 365日）
 
 - **フロントエンド (`frontend/.env`)**:
   - `VITE_API_BASE_URL`: バックエンドAPIのURL (Viteプロキシ使用時は空文字、別ホスト運用時は `https://api.example.com` 等を指定)

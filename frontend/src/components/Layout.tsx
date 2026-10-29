@@ -1,5 +1,6 @@
 import React from 'react';
 import { Header } from './Header';
+import { PassphraseModal } from './PassphraseModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,6 +16,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <footer className="py-4 text-center text-xs text-slate-400 border-t border-slate-200">
         © 杉本研究室 (IMLab) 備品管理システム
       </footer>
+      <PassphraseModal />
     </div>
   );
 };

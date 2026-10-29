@@ -56,6 +56,41 @@ export const LOG_ACTION_BADGE_CLASS: Record<UsageLog['action'], string> = {
   return: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
 };
 
+export const AUTH_TOKEN_STORAGE_KEY = 'imlab_storage_auth_token';
+
+export const getStoredAuthToken = (): string | null => {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const setStoredAuthToken = (token: string): void => {
+  try {
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  } catch (e) {
+    console.error('Failed to save auth token to localStorage', e);
+  }
+};
+
+export const removeStoredAuthToken = (): void => {
+  try {
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  } catch (e) {
+    console.error('Failed to remove auth token from localStorage', e);
+  }
+};
+
+const getAuthHeaders = (extra: Record<string, string> = {}): Record<string, string> => {
+  const headers: Record<string, string> = { ...extra };
+  const token = getStoredAuthToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
 const RAW_BASE_URL =(import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const API_PREFIX = RAW_BASE_URL ? `${RAW_BASE_URL}/api` : '/api';
 
@@ -117,7 +152,7 @@ export const api = {
   }): Promise<Item> {
     const res = await fetch(`${API_PREFIX}/items`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(item),
     });
     if (!res.ok) {
@@ -132,6 +167,7 @@ export const api = {
     formData.append('file', file);
     const res = await fetch(`${API_PREFIX}/items/upload-image`, {
       method: 'POST',
+      headers: getAuthHeaders(),
       body: formData,
     });
     if (!res.ok) {
@@ -144,7 +180,7 @@ export const api = {
   async borrowItem(itemId: string, userId: string): Promise<Item> {
     const res = await fetch(`${API_PREFIX}/items/${itemId}/borrow`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ user_id: userId }),
     });
     if (!res.ok) {
@@ -157,7 +193,7 @@ export const api = {
   async returnItem(itemId: string, userId?: string): Promise<Item> {
     const res = await fetch(`${API_PREFIX}/items/${itemId}/return`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ user_id: userId || '' }),
     });
     if (!res.ok) {
@@ -170,6 +206,7 @@ export const api = {
   async deleteItem(itemId: string, userId: string): Promise<void> {
     const res = await fetch(`${API_PREFIX}/items/${itemId}?user_id=${encodeURIComponent(userId)}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -187,7 +224,7 @@ export const api = {
   async createUser(firstName: string, lastName: string, grade: string): Promise<User> {
     const res = await fetch(`${API_PREFIX}/users`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ first_name: firstName, last_name: lastName, grade }),
     });
     if (!res.ok) {
@@ -208,6 +245,41 @@ export const api = {
       throw new Error(err.detail || 'ログインに失敗しました');
     }
     return res.json();
+  },
+
+  // Auth / Passphrase
+  async verifyPassphrase(passphrase: string): Promise<{ valid: boolean; token: string }> {
+    const res = await fetch(`${API_PREFIX}/auth/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passphrase }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || '合言葉が正しくありません');
+    }
+    const data = await res.json();
+    setStoredAuthToken(data.token);
+    return data;
+  },
+
+  async checkAuthStatus(): Promise<boolean> {
+    const token = getStoredAuthToken();
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_PREFIX}/auth/check`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data.authenticated) {
+        removeStoredAuthToken();
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   // Logs
