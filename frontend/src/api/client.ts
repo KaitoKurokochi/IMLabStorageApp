@@ -6,6 +6,16 @@ export interface User {
   created_at: string;
 }
 
+// ログイン画面のサジェスト用 (名前と ID のみ)
+export type UserSuggestion = Pick<User, 'id' | 'first_name' | 'last_name'>;
+
+export const GRADES = [
+  'B1', 'B2', 'B3', 'B4',
+  'M1', 'M2',
+  'D1', 'D2', 'D3',
+  '教員', '研究員', 'OB/OG', 'その他'
+];
+
 // 画面に出すユーザー名 (名 姓)
 export const getUserDisplayName = (user: Pick<User, 'first_name' | 'last_name'>): string =>
   `${user.first_name} ${user.last_name}`;
@@ -218,6 +228,12 @@ export const api = {
   async getUser(userId: string): Promise<{ user: User; borrowed_items: Item[]; logs: UsageLog[] }> {
     const res = await fetch(`${API_PREFIX}/users/${userId}`);
     if (!res.ok) throw new Error('ユーザー情報の取得に失敗しました');
+    return res.json();
+  },
+
+  async getUsersByGrade(grade: string): Promise<UserSuggestion[]> {
+    const res = await fetch(`${API_PREFIX}/users?grade=${encodeURIComponent(grade)}`);
+    if (!res.ok) throw new Error('ユーザー一覧の取得に失敗しました');
     return res.json();
   },
 

@@ -1,31 +1,58 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import Select from 'react-select';
 import { LogIn, UserPlus, Loader2 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
+import { GRADES, UserSuggestion, api, getUserDisplayName } from '../api/client';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [grade, setGrade] = useState<string | null>(null);
+  const [users, setUsers] = useState<UserSuggestion[]>([]);
+  const [selectedUser, setSelectedUser] = useState<UserSuggestion | null>(null);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // 学年を選んだら、その学年のユーザーをサジェストに読み込む
+  useEffect(() => {
+    setSelectedUser(null);
+    setUsers([]);
+    if (!grade) return;
+
+    let cancelled = false;
+    setIsLoadingUsers(true);
+    api.getUsersByGrade(grade)
+      .then((list) => {
+        if (!cancelled) setUsers(list);
+      })
+      .catch((err: any) => {
+        if (!cancelled) setErrorMessage(err.message || 'ユーザー一覧の取得に失敗しました。');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingUsers(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [grade]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firstName.trim() || !lastName.trim()) {
-      setErrorMessage('名前を入力してください。');
+    if (!selectedUser) {
+      setErrorMessage('学年と名前を選択してください。');
       return;
     }
 
     try {
       setIsSubmitting(true);
       setErrorMessage(null);
-      const user = await login(firstName.trim(), lastName.trim());
+      const user = await login(selectedUser.first_name, selectedUser.last_name);
       navigate(`/users/${user.id}`);
     } catch (err: any) {
-      setErrorMessage(err.message || 'ログインに失敗しました。名前を確認してください。');
+      setErrorMessage(err.message || 'ログインに失敗しました。');
     } finally {
       setIsSubmitting(false);
     }
@@ -37,7 +64,7 @@ export const LoginPage: React.FC = () => {
         <div className="text-center space-y-1">
           <h1 className="text-2xl font-bold text-slate-800">ログイン</h1>
           <p className="text-xs text-slate-500">
-            登録済みの名前を英語表記で入力してください
+            学年を選んでから、登録済みの名前を選択してください
           </p>
         </div>
 
@@ -48,39 +75,40 @@ export const LoginPage: React.FC = () => {
         )}
 
         <form onSubmit={handleLogin} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                名 (First name)
-              </label>
-              <input
-                type="text"
-                required
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="例: Taro"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                姓 (Last name)
-              </label>
-              <input
-                type="text"
-                required
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="例: Yamada"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              学年 / 身分
+            </label>
+            <Select
+              options={GRADES.map((g) => ({ value: g, label: g }))}
+              value={grade ? { value: grade, label: grade } : null}
+              onChange={(option) => setGrade(option ? option.value : null)}
+              placeholder="学年を選択"
+              isSearchable={false}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              名前 (名 姓)
+            </label>
+            <Select
+              options={users}
+              value={selectedUser}
+              onChange={(option) => setSelectedUser(option)}
+              getOptionValue={(u) => u.id}
+              getOptionLabel={getUserDisplayName}
+              isDisabled={!grade}
+              isLoading={isLoadingUsers}
+              placeholder={grade ? '名前を選択 (入力で絞り込み)' : '先に学年を選択してください'}
+              noOptionsMessage={() => 'この学年の登録ユーザーがいません'}
+            />
           </div>
 
           <div className="pt-2">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !selectedUser}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {isSubmitting ? (
@@ -111,4 +139,3 @@ export const LoginPage: React.FC = () => {
     </Layout>
   );
 };
-

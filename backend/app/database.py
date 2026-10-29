@@ -118,6 +118,12 @@ class DatabaseManager:
             return None
         return await self.db.users.find_one({"_id": ObjectId(user_id)})
 
+    async def list_users_by_grade(self, grade: str) -> List[Dict[str, Any]]:
+        return await self.db.users.find(
+            {"grade": grade},
+            {"first_name": 1, "last_name": 1},
+        ).sort([("last_name", 1), ("first_name", 1)]).collation(USER_NAME_COLLATION).to_list(None)
+
     async def find_user_by_name(self, first_name: str, last_name: str) -> Optional[Dict[str, Any]]:
         return await self.db.users.find_one(
             {"first_name": first_name, "last_name": last_name},

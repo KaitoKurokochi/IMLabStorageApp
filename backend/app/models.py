@@ -33,6 +33,14 @@ class UserResponse(UserBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+class UserSuggestion(BaseModel):
+    """ログイン画面のサジェスト用 (名前と ID のみ)"""
+    id: PyObjectId = Field(validation_alias=AliasChoices("_id", "id"))
+    first_name: str
+    last_name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
 class UserLoginRequest(BaseModel):
     first_name: NameStr
     last_name: NameStr

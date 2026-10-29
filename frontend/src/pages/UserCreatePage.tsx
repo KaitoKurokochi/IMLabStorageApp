@@ -4,13 +4,7 @@ import { UserPlus, ArrowLeft, Loader2, Check } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { usePassphrase } from '../context/PassphraseContext';
-
-const GRADES = [
-  'B1', 'B2', 'B3', 'B4',
-  'M1', 'M2',
-  'D1', 'D2', 'D3',
-  '教員', '研究員', 'OB/OG', 'その他'
-];
+import { GRADES } from '../api/client';
 
 export const UserCreatePage: React.FC = () => {
   const navigate = useNavigate();
