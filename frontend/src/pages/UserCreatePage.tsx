@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { UserPlus, ArrowLeft, Loader2, Check } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
+import { usePassphrase } from '../context/PassphraseContext';
 
 const GRADES = [
   'B1', 'B2', 'B3', 'B4',
@@ -14,6 +15,7 @@ const GRADES = [
 export const UserCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
+  const { requireAuthorization } = usePassphrase();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [grade, setGrade] = useState('B4');
@@ -27,16 +29,18 @@ export const UserCreatePage: React.FC = () => {
       return;
     }
 
-    try {
-      setIsSubmitting(true);
-      setErrorMessage(null);
-      const user = await register(firstName.trim(), lastName.trim(), grade);
-      navigate(`/users/${user.id}`);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'ユーザー登録に失敗しました。');
-    } finally {
-      setIsSubmitting(false);
-    }
+    await requireAuthorization(async () => {
+      try {
+        setIsSubmitting(true);
+        setErrorMessage(null);
+        const user = await register(firstName.trim(), lastName.trim(), grade);
+        navigate(`/users/${user.id}`);
+      } catch (err: any) {
+        setErrorMessage(err.message || 'ユーザー登録に失敗しました。');
+      } finally {
+        setIsSubmitting(false);
+      }
+    });
   };
 
   return (

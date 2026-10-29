@@ -7,11 +7,12 @@ import shutil
 from typing import Optional, List
 from PIL import Image, ImageOps
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Response
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Response, Depends
 from fastapi.responses import StreamingResponse
 from app.models import ItemResponse, ItemCreate, ItemBorrowRequest, ShelfResponse, UsageLogResponse
 from app.database import db
 from app.config import settings
+from app.auth import verify_auth
 
 router = APIRouter(prefix="/items", tags=["items"])
 
@@ -32,7 +33,7 @@ async def list_items(
         user_id=user_id
     )
 
-@router.post("", response_model=ItemResponse)
+@router.post("", response_model=ItemResponse, dependencies=[Depends(verify_auth)])
 async def create_item(item_in: ItemCreate):
     """新しい備品を登録"""
     # Shelf validation
@@ -50,7 +51,7 @@ async def create_item(item_in: ItemCreate):
     created = await db.create_item(item_in.model_dump(), user)
     return created
 
-@router.post("/upload-image")
+@router.post("/upload-image", dependencies=[Depends(verify_auth)])
 async def upload_image(file: UploadFile = File(...)):
     """備品画像のアップロード (MongoDB保存 & 自動圧縮WebP変換)"""
     allowed_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
@@ -157,7 +158,7 @@ async def get_item_detail(item_id: str):
         "logs": [UsageLogResponse.model_validate(log) for log in logs]
     }
 
-@router.post("/{item_id}/borrow", response_model=ItemResponse)
+@router.post("/{item_id}/borrow", response_model=ItemResponse, dependencies=[Depends(verify_auth)])
 async def borrow_item(item_id: str, req: ItemBorrowRequest):
     """備品を使用中にする"""
     item = await db.get_item(item_id)
@@ -177,7 +178,7 @@ async def borrow_item(item_id: str, req: ItemBorrowRequest):
     updated = await db.borrow_item(item_id, user)
     return updated
 
-@router.post("/{item_id}/return", response_model=ItemResponse)
+@router.post("/{item_id}/return", response_model=ItemResponse, dependencies=[Depends(verify_auth)])
 async def return_item(item_id: str, req: Optional[ItemBorrowRequest] = None):
     """備品を返却する"""
     item = await db.get_item(item_id)
@@ -190,7 +191,7 @@ async def return_item(item_id: str, req: Optional[ItemBorrowRequest] = None):
     updated = await db.return_item(item_id, user)
     return updated
 
-@router.delete("/{item_id}")
+@router.delete("/{item_id}", dependencies=[Depends(verify_auth)])
 async def delete_item(item_id: str, user_id: str = Query(..., description="削除するユーザーのID")):
     """備品を削除 (論理削除。削除の履歴をログに残す)"""
     item = await db.get_item(item_id)
